@@ -34,7 +34,7 @@ function createRiverbed(seed: string) {
   };
 }
 
-// Weights in rolling, transverse, star order; shared with future surface lookup.
+// Weights in rolling, transverse, star order; also used for ground colours.
 export function regionWeights(seed: string) {
   const noise = createNoise2D(prng(`${seed}:regions`));
   const frequency = 0.0003;
@@ -121,13 +121,14 @@ export function seedFromUrl() {
 const slopeAt = (h: (x: number, z: number) => number, x: number, z: number) =>
   Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
 
-// Flattest point on a grid within `radius` of (x, z); the start itself is a candidate.
-export function findFlatSpot(h: (x: number, z: number) => number, x: number, z: number, radius = 30, step = 5) {
+// Flattest firm point on a grid within `radius` of (x, z); the start itself is a candidate.
+// Riverbeds are the flattest ground around, so soft sand is skipped or reset would drop you back in.
+export function findFlatSpot(h: (x: number, z: number) => number, surface: (x: number, z: number) => Surface, x: number, z: number, radius = 30, step = 5) {
   let best = { x, z };
-  let bestSlope = slopeAt(h, x, z);
+  let bestSlope = surface(x, z) === 'soft' ? Infinity : slopeAt(h, x, z);
   for (let dx = -radius; dx <= radius; dx += step) {
     for (let dz = -radius; dz <= radius; dz += step) {
-      if (Math.hypot(dx, dz) > radius) continue;
+      if (Math.hypot(dx, dz) > radius || surface(x + dx, z + dz) === 'soft') continue;
       const s = slopeAt(h, x + dx, z + dz);
       if (s < bestSlope) [best, bestSlope] = [{ x: x + dx, z: z + dz }, s];
     }

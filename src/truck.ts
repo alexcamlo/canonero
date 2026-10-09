@@ -110,6 +110,14 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   const sinkage = [0, 0, 0, 0];
   let pressure = 1;
   let dir = 0; // last direction of travel, for rocking
+  // Scratch objects: update() runs every physics step, so don't allocate there.
+  const fwd = new THREE.Vector3();
+  const rot = new THREE.Quaternion();
+  const impulse = new THREE.Vector3();
+  const forward = () => {
+    const q = body.rotation();
+    return fwd.set(1, 0, 0).applyQuaternion(rot.set(q.x, q.y, q.z, q.w));
+  };
 
   // Call once per fixed physics step, before world.step().
   function update(input: Input, dt: number) {
@@ -158,15 +166,15 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     const moving = Math.abs(speed) > T.rockSpeed ? Math.sign(speed) : 0;
     const dirChanged = moving !== 0 && dir !== 0 && moving !== dir;
     if (moving) dir = moving;
-    const q = body.rotation();
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
-    const vf = fwd.dot(body.linvel() as THREE.Vector3);
+    const v = body.linvel();
+    const f = forward();
+    const vf = f.x * v.x + f.y * v.y + f.z * v.z;
     for (let i = 0; i < 4; i++) {
       const p = vehicle.wheelIsInContact(i) && vehicle.wheelContactPoint(i);
       if (!p) continue; // airborne wheels keep their sinkage
       // Drag acts like friction: it can stop this wheel's share of forward motion, never push the truck back.
       const j = -Math.sign(vf) * Math.min((Math.abs(vf) * T.mass) / 4, drag(sinkage[i]) * dt);
-      body.applyImpulseAtPoint(fwd.clone().multiplyScalar(j), p, true);
+      body.applyImpulseAtPoint(impulse.copy(f).multiplyScalar(j), p, true);
       sinkage[i] = stepSinkage(
         sinkage[i],
         { surface: surfaceAt(p.x, p.z), groundSpeed: speed, wheelSpin, pressure, steerRate: steerDelta / dt, isFront: i < 2, dirChanged },
@@ -175,7 +183,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     }
   }
 
-  // Teleport: upright (keeping yaw if given), at rest, with no interpolation across the jump.
+  // Teleport: upright at the given yaw, at rest, with no interpolation across the jump.
   function place(x: number, y: number, z: number, yaw: number) {
     body.setTranslation({ x, y, z }, true);
     body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
@@ -188,9 +196,8 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
 
   // Put the truck upright at (x, z), dropped from a bit above groundY, facing the way it did.
   function reset(x: number, z: number, groundY: number) {
-    const q = body.rotation();
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
-    place(x, groundY + T.flipLift, z, Math.atan2(-fwd.z, fwd.x));
+    const f = forward();
+    place(x, groundY + T.flipLift, z, Math.atan2(-f.z, f.x));
   }
 
   // Right the truck where it is.
@@ -214,6 +221,6 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     range = range === 'high' ? 'low' : 'high';
   }
 
-  // gear/rpm/sinkage are exposed for the later HUD and audio tickets
+  // gear/rpm are unused until the audio ticket (#13) lands
   return { body, vehicle, mesh, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
 }

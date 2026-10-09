@@ -34,7 +34,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyF') truck.flip();
   if (e.code === 'KeyT') {
     const p = truck.body.translation();
-    const spot = findFlatSpot(height, p.x, p.z);
+    const spot = findFlatSpot(height, surface, p.x, p.z);
     truck.reset(spot.x, spot.z, height(spot.x, spot.z));
   }
 });

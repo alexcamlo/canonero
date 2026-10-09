@@ -22,6 +22,7 @@ export const SINKAGE = {
   grip: 0.6, // traction lost at full sinkage
   airedSink: 0.4, // sinking speed at zero pressure (1 at full pressure)
   airedGrip: 0.5, // fraction of the sinkage grip loss left at zero pressure (1 at full pressure)
+  airedBonus: 0.3, // extra traction at zero pressure: a longer footprint bites the sand
   drag: 4500, // N per wheel at full sinkage, linear so shallow sinkage already holds the truck on a slope; above high-range first-gear force, just under low range
 };
 
@@ -38,8 +39,9 @@ export function stepSinkage(s: number, w: Wheel, dt: number) {
   return Math.max(0, Math.min(Math.max(s, cap), next));
 }
 
-// Multiplier on the wheel's friction; a flatter tyre floats better, so it loses less to sinkage.
-export const traction = (s: number, pressure = 1) => 1 - S.grip * s * (S.airedGrip + (1 - S.airedGrip) * pressure);
+// Multiplier on the wheel's friction; a flatter tyre grips more and floats better, so it loses less to sinkage.
+export const traction = (s: number, pressure = 1) =>
+  (1 + S.airedBonus * (1 - pressure)) * (1 - S.grip * s * (S.airedGrip + (1 - S.airedGrip) * pressure));
 
 // Rolling resistance in N the engine has to overcome before the wheel pulls.
 export const drag = (s: number) => S.drag * s;

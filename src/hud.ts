@@ -40,7 +40,7 @@ export function createHud() {
   };
 
   return {
-    // heading is the truck's forward vector on the ground plane.
+    // (fx, fz) is the truck's forward vector on the ground plane.
     update(s: State, fx: number, fz: number, dt: number) {
       const tyres = `Tyres ${Math.round(s.pressure * 100)}%`;
       const range = s.range === 'high' ? 'HI' : 'LO';

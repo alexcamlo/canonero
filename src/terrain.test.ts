@@ -147,13 +147,17 @@ describe('chunkHeights', () => {
 });
 
 describe('findFlatSpot', () => {
-  test('stays within radius and is no steeper than the start', () => {
+  test('stays within radius, on firm sand, and is no steeper than a firm start', () => {
     const h = createHeight('dune');
+    const surface = createSurface('dune');
     const slope = (x: number, z: number) => Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
-    for (const [x, z] of samples) {
-      const p = findFlatSpot(h, x, z, 30);
+    let riverbed = [0, 0];
+    for (let x = 0; surface(riverbed[0], 0) !== 'soft'; x += 5) riverbed = [x, 0];
+    for (const [x, z] of [...samples, riverbed]) {
+      const p = findFlatSpot(h, surface, x, z, 30);
       expect(Math.hypot(p.x - x, p.z - z)).toBeLessThanOrEqual(30);
-      expect(slope(p.x, p.z)).toBeLessThanOrEqual(slope(x, z));
+      expect(surface(p.x, p.z)).toBe('sand');
+      if (surface(x, z) === 'sand') expect(slope(p.x, p.z)).toBeLessThanOrEqual(slope(x, z));
     }
   });
 });

@@ -57,8 +57,8 @@ describe('air pressure', () => {
     expect(run(0, { pressure: 0.4 }, 2)).toBeLessThan(run(0, {}, 2) * 0.7);
   });
 
-  test('lower pressure keeps more traction when sunk', () => {
+  test('lower pressure grips better, sunk or not', () => {
     expect(traction(0.8, 0.4)).toBeGreaterThan(traction(0.8, 1));
-    expect(traction(0, 0.4)).toBe(1);
+    expect(traction(0, 0.4)).toBeGreaterThan(traction(0, 1));
   });
 });
