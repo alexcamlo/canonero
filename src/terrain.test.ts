@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CHUNK_CELLS, chunkHeights } from './chunks';
-import { createHeight, findFlatSpot, regionWeights } from './terrain';
+import { createHeight, createSurface, findFlatSpot, regionWeights } from './terrain';
 
 const samples = [
   [0, 0],
@@ -9,7 +9,70 @@ const samples = [
   [5000, 5000],
 ];
 
+describe('createSurface', () => {
+  test('surface is reproducible per seed and changes with the seed', () => {
+    const a = createSurface('dune');
+    const b = createSurface('dune');
+    const c = createSurface('erg');
+    let differences = 0;
+    for (let x = -800; x <= 800; x += 20) {
+      for (let z = -800; z <= 800; z += 20) {
+        expect(a(x, z)).toBe(b(x, z));
+        if (a(x, z) !== c(x, z)) differences++;
+      }
+    }
+    expect(differences).toBeGreaterThan(0);
+  });
+
+  test('seeded riverbeds cross every region and leave ordinary sand between them', () => {
+    const surface = createSurface('dune');
+    const weights = regionWeights('dune');
+    const regions = [false, false, false];
+    let sand = 0;
+    for (let x = -2000; x <= 2000; x += 20) {
+      for (let z = -2000; z <= 2000; z += 20) {
+        if (surface(x, z) === 'sand') sand++;
+        else weights(x, z).forEach((w, i) => { if (w > 0.9) regions[i] = true; });
+      }
+    }
+    expect(regions).toEqual([true, true, true]);
+    expect(sand).toBeGreaterThan(30000);
+  });
+});
+
 describe('createHeight', () => {
+  test('riverbed centres have a gentle slope along the channel', () => {
+    const height = createHeight('dune');
+    const surface = createSurface('dune');
+    const centre = (x: number, z: number) => {
+      let left = x;
+      let right = x;
+      while (x - left < 60 && surface(left - 0.5, z) === 'soft') left -= 0.5;
+      while (right - x < 60 && surface(right + 0.5, z) === 'soft') right += 0.5;
+      if (right - left > 60) return NaN;
+      return (left + right) / 2;
+    };
+    let channels = 0;
+    let flat = 0;
+    for (let z = -1000; z <= 1000; z += 80) {
+      for (let x = -1000; x <= 1000; x += 20) {
+        if (surface(x, z) !== 'soft') continue;
+        const cx = centre(x, z);
+        if (!Number.isFinite(cx)) continue;
+        if (surface(cx, z - 1) !== 'soft' || surface(cx, z + 1) !== 'soft') continue;
+        const before = centre(cx, z - 1);
+        const after = centre(cx, z + 1);
+        if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
+        const slope = Math.abs(height(after, z + 1) - height(before, z - 1)) / Math.hypot(after - before, 2);
+        if (slope < 0.03) flat++;
+        channels++;
+      }
+    }
+    expect(channels).toBeGreaterThan(20);
+    // Near tangencies, the midpoint of a soft band can still lie on a bank.
+    expect(flat / channels).toBeGreaterThan(0.95);
+  });
+
   test('star regions have challenging slip faces at the 2 m grid spacing', () => {
     const height = createHeight('dune');
     const weights = regionWeights('dune');

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 import type { Input } from './input';
 import { GEARBOX, shift, type Range } from './gearbox';
 import { drag, stepSinkage, traction } from './sinkage';
-import { surfaceAt } from './terrain';
+import type { Surface } from './terrain';
 
 // Truck faces +x (Rapier's default vehicle forward axis), y is up, +z is the right side.
 export const TRUCK = {
@@ -37,7 +37,7 @@ export const TRUCK = {
 
 const T = TRUCK;
 
-export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THREE.Vector3) {
+export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THREE.Vector3, surfaceAt: (x: number, z: number) => Surface) {
   const body = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic().setTranslation(start.x, start.y, start.z).setCanSleep(false),
   );
