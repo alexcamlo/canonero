@@ -6,6 +6,7 @@ export const CHUNK_CELLS = 32; // grid cells per side (2 m spacing)
 const RADIUS = 5; // chunks kept around the truck; scene fog must fully hide this distance
 
 type Height = (x: number, z: number) => number;
+type GroundColor = (x: number, z: number) => [number, number, number];
 
 // Heights for chunk (cx, cz), centred at (cx, cz) * CHUNK_SIZE, in Rapier's heightfield layout
 // (column-major: consecutive values walk along z). Samples sit on one world-aligned grid, so
@@ -22,8 +23,9 @@ export function chunkHeights(height: Height, cx: number, cz: number) {
   return heights;
 }
 
-export function createChunks(world: RAPIER.World, scene: THREE.Scene, height: Height) {
-  const material = new THREE.MeshLambertMaterial({ color: 0xe2a96c, flatShading: true });
+export function createChunks(world: RAPIER.World, scene: THREE.Scene, height: Height, groundColor: GroundColor) {
+  const material = new THREE.MeshLambertMaterial({ vertexColors: true, flatShading: true });
+  const color = new THREE.Color();
   const chunks = new Map<string, { cx: number; cz: number; mesh: THREE.Mesh; collider: RAPIER.Collider }>();
 
   function add(cx: number, cz: number) {
@@ -35,6 +37,14 @@ export function createChunks(world: RAPIER.World, scene: THREE.Scene, height: He
     for (let zi = 0; zi < n; zi++) {
       for (let xi = 0; xi < n; xi++) position.setY(xi + zi * n, heights[zi + xi * n]);
     }
+    const colors = new Float32Array(n * n * 3);
+    for (let zi = 0; zi < n; zi++) {
+      for (let xi = 0; xi < n; xi++) {
+        const [r, g, b] = groundColor((cx - 0.5) * CHUNK_SIZE + xi * (CHUNK_SIZE / CHUNK_CELLS), (cz - 0.5) * CHUNK_SIZE + zi * (CHUNK_SIZE / CHUNK_CELLS));
+        color.setRGB(r, g, b, THREE.SRGBColorSpace).toArray(colors, (xi + zi * n) * 3); // to linear working space
+      }
+    }
+    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.computeBoundingSphere();
 
     const mesh = new THREE.Mesh(geometry, material);

@@ -46,6 +46,26 @@ export function regionWeights(seed: string) {
   };
 }
 
+// Per-region sand tones (sRGB 0-1) and the paler, greyer silt of riverbeds.
+const GROUND = {
+  palettes: [[0.93, 0.8, 0.59], [0.87, 0.55, 0.28], [0.7, 0.29, 0.17]],
+  riverbed: [0.84, 0.8, 0.72],
+};
+
+// Ground colour at world (x, z): region palettes blended by weight, then mixed toward riverbed silt.
+export function createGroundColor(seed: string) {
+  const weights = regionWeights(seed);
+  const bed = createRiverbed(seed);
+  return (x: number, z: number): [number, number, number] => {
+    const w = weights(x, z);
+    const b = bed(x, z);
+    return [0, 1, 2].map((c) => {
+      const sand = w[0] * GROUND.palettes[0][c] + w[1] * GROUND.palettes[1][c] + w[2] * GROUND.palettes[2][c];
+      return sand + (GROUND.riverbed[c] - sand) * b;
+    }) as [number, number, number];
+  };
+}
+
 // Terrain height in metres at world (x, z); a pure function of the seed.
 export function createHeight(seed: string) {
   const dunes = { rollingAmplitude: 4, ridgeAmplitude: 12, starAmplitude: 21, starFrequency: 0.006 };
