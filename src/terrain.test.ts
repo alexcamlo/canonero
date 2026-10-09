@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CHUNK_CELLS, chunkHeights } from './chunks';
-import { createHeight, findFlatSpot } from './terrain';
+import { createHeight, findFlatSpot, regionWeights } from './terrain';
 
 const samples = [
   [0, 0],
@@ -10,6 +10,41 @@ const samples = [
 ];
 
 describe('createHeight', () => {
+  test('star regions have challenging slip faces at the 2 m grid spacing', () => {
+    const height = createHeight('dune');
+    const weights = regionWeights('dune');
+    let maxSlope = 0;
+    let maxHeight = -Infinity;
+    for (let x = -1200; x <= 1200; x += 8) {
+      for (let z = -1200; z <= 1200; z += 8) {
+        if (weights(x, z)[2] < 0.9) continue;
+        const h = height(x, z);
+        maxHeight = Math.max(maxHeight, h);
+        const slope = Math.hypot((height(x + 2, z) - h) / 2, (height(x, z + 2) - h) / 2);
+        maxSlope = Math.max(maxSlope, slope);
+      }
+    }
+    expect(maxSlope).toBeGreaterThan(0.6);
+    expect(maxHeight).toBeGreaterThan(20);
+  });
+
+  test('region weights sum to one, blend smoothly, and each region dominates somewhere', () => {
+    const weights = regionWeights('dune');
+    const maxima = [0, 0, 0];
+    for (let x = -2000; x <= 2000; x += 80) {
+      for (let z = -2000; z <= 2000; z += 80) {
+        const w = weights(x, z);
+        const nearby = weights(x + 2, z + 2);
+        expect(w[0] + w[1] + w[2]).toBeCloseTo(1);
+        w.forEach((v, i) => {
+          expect(Math.abs(v - nearby[i])).toBeLessThan(0.03);
+          maxima[i] = Math.max(maxima[i], v);
+        });
+      }
+    }
+    for (const m of maxima) expect(m).toBeGreaterThan(0.9);
+  });
+
   test('same seed gives the same desert', () => {
     const a = createHeight('dune');
     const b = createHeight('dune');
