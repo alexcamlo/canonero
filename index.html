@@ -8,6 +8,9 @@
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #f2b27a; }
       canvas { display: block; }
+      #hud, #hud-warning { position: fixed; font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.08em; color: #fff4e0; text-shadow: 0 1px 6px rgba(80, 40, 10, 0.5); pointer-events: none; transition: opacity 1s; }
+      #hud { top: 16px; left: 16px; display: flex; gap: 20px; }
+      #hud-warning { top: 16px; right: 16px; opacity: 0; }
     </style>
   </head>
   <body>

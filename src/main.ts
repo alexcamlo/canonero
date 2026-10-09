@@ -2,6 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import { updateChaseCamera } from './camera';
 import { createChunks } from './chunks';
+import { createHud } from './hud';
 import { readInput } from './input';
 import { createScene } from './scene';
 import { createHeight, findFlatSpot, seedFromUrl, SOFT_PATCHES } from './terrain';
@@ -35,6 +36,8 @@ for (const p of SOFT_PATCHES) {
 
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0));
 const tracks = createTracks(scene, truck);
+const hud = createHud();
+const fwd = new THREE.Vector3();
 camera.position.set(-10, height(-10, 0) + 4, 0);
 
 addEventListener('keydown', (e) => {
@@ -62,6 +65,8 @@ renderer.setAnimationLoop((now) => {
   }
 
   truck.render(acc / STEP);
+  fwd.set(1, 0, 0).applyQuaternion(truck.body.rotation()); // truck forward is +x
+  hud.update(truck.state(), fwd.x, fwd.z, dt);
   tracks.update(now / 1000);
   chunks.update(truck.mesh.position);
   updateChaseCamera(camera, truck.mesh, dt, height);
