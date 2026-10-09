@@ -32,6 +32,12 @@ export const TRUCK = {
   steerFalloff: 18, // m/s; steering lock halves at this speed
   sinkDepth: 0.2, // m, how far a fully sunk wheel sits into the sand (suspension rest shortens by the same)
   spinSpeed: 2, // m/s; below this, throttle counts as wheelspin (fully at standstill)
+  minPressure: 0.4, // fully aired down
+  airDownRate: 0.3, // pressure per second; letting air out is quick
+  compressorRate: 0.05, // pressure per second; a full re-inflate takes ~12 s
+  airedTopSpeed: 0.6, // top speed fraction at zero pressure
+  airedSideGrip: 0.6, // cornering grip fraction at zero pressure
+  airedSteerRate: 0.6, // steering speed fraction at zero pressure
   rockSpeed: 0.2, // m/s the truck must move each way for a direction change to count as rocking
 };
 
@@ -102,6 +108,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   let gear = 1;
   let rpm = 0;
   const sinkage = [0, 0, 0, 0];
+  let pressure = 1;
   let dir = 0; // last direction of travel, for rocking
 
   // Call once per fixed physics step, before world.step().
@@ -109,11 +116,16 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     prevPos.copy(body.translation());
     prevRot.copy(body.rotation());
 
+    pressure = THREE.MathUtils.clamp(
+      pressure + ((input.compressor ? T.compressorRate : 0) - (input.airDown ? T.airDownRate : 0)) * dt,
+      T.minPressure,
+      1,
+    );
     const speed = vehicle.currentVehicleSpeed();
     const box = shift(speed, range, gear);
     gear = box.gear;
     rpm = box.rpm;
-    const topSpeed = GEARBOX.topSpeed[range];
+    const topSpeed = GEARBOX.topSpeed[range] * (T.airedTopSpeed + (1 - T.airedTopSpeed) * pressure);
     const force = T.engineForce * box.driveForceMultiplier;
     let engine = 0;
     let brake = input.throttle || input.brake ? 0 : T.idleBrake;
@@ -127,13 +139,15 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     }
 
     const target = (input.steer * T.maxSteer) / (1 + Math.abs(speed) / T.steerFalloff);
-    const steerDelta = THREE.MathUtils.clamp(target - steer, -T.steerRate * dt, T.steerRate * dt);
+    const steerRate = T.steerRate * (T.airedSteerRate + (1 - T.airedSteerRate) * pressure);
+    const steerDelta = THREE.MathUtils.clamp(target - steer, -steerRate * dt, steerRate * dt);
     steer += steerDelta;
 
     for (let i = 0; i < 4; i++) {
       vehicle.setWheelEngineForce(i, engine);
       vehicle.setWheelBrake(i, brake);
-      vehicle.setWheelFrictionSlip(i, T.frictionSlip * traction(sinkage[i]));
+      vehicle.setWheelFrictionSlip(i, T.frictionSlip * traction(sinkage[i], pressure));
+      vehicle.setWheelSideFrictionStiffness(i, T.sideFrictionStiffness * (T.airedSideGrip + (1 - T.airedSideGrip) * pressure));
       vehicle.setWheelSuspensionRestLength(i, T.suspensionRest - sinkage[i] * T.sinkDepth);
       if (i < 2) vehicle.setWheelSteering(i, steer);
     }
@@ -155,7 +169,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
       body.applyImpulseAtPoint(fwd.clone().multiplyScalar(j), p, true);
       sinkage[i] = stepSinkage(
         sinkage[i],
-        { surface: surfaceAt(p.x, p.z), groundSpeed: speed, wheelSpin, steerRate: steerDelta / dt, isFront: i < 2, dirChanged },
+        { surface: surfaceAt(p.x, p.z), groundSpeed: speed, wheelSpin, pressure, steerRate: steerDelta / dt, isFront: i < 2, dirChanged },
         dt,
       );
     }
@@ -191,6 +205,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     mesh.quaternion.slerpQuaternions(prevRot, currRot.copy(body.rotation()), alpha);
     wheels.forEach((w, i) => {
       w.position.y = T.wheelY - (vehicle.wheelSuspensionLength(i) ?? T.suspensionRest) - sinkage[i] * T.sinkDepth;
+      w.scale.set(0.9 + 0.1 * pressure, 0.9 + 0.1 * pressure, 1); // flatter tyre, smaller radius
       w.rotation.set(0, vehicle.wheelSteering(i) ?? 0, vehicle.wheelRotation(i) ?? 0, 'YXZ');
     });
   }
@@ -200,5 +215,5 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   }
 
   // gear/rpm/sinkage are exposed for the later HUD and audio tickets
-  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm, sinkage: [...sinkage] }) };
+  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
 }

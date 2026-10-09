@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { drag, stepSinkage, traction, type Wheel } from './sinkage';
 
-const still: Wheel = { surface: 'soft', groundSpeed: 0, wheelSpin: 0, steerRate: 0, isFront: false, dirChanged: false };
+const still: Wheel = { surface: 'soft', groundSpeed: 0, wheelSpin: 0, steerRate: 0, pressure: 1, isFront: false, dirChanged: false };
 
 // Run the step for `seconds` at 60 Hz.
 function run(s: number, w: Partial<Wheel>, seconds: number) {
@@ -50,4 +50,15 @@ test('sinkage costs traction and adds drag', () => {
   expect(traction(1)).toBeGreaterThan(0);
   expect(drag(0)).toBe(0);
   expect(drag(1)).toBeGreaterThan(drag(0.5));
+});
+
+describe('air pressure', () => {
+  test('lower pressure sinks slower', () => {
+    expect(run(0, { pressure: 0.4 }, 2)).toBeLessThan(run(0, {}, 2) * 0.7);
+  });
+
+  test('lower pressure keeps more traction when sunk', () => {
+    expect(traction(0.8, 0.4)).toBeGreaterThan(traction(0.8, 1));
+    expect(traction(0, 0.4)).toBe(1);
+  });
 });
