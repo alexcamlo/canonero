@@ -26,6 +26,7 @@ export const TRUCK = {
   idleBrake: 2, // engine braking when no pedal is pressed
   maxSteer: 0.55, // rad
   steerRate: 1.6, // rad/s, how fast the wheel turns toward the target
+  flipLift: 1.5, // m, how far flip/reset drop the truck from
   steerFalloff: 18, // m/s; steering lock halves at this speed
 };
 
@@ -121,6 +122,31 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     vehicle.updateVehicle(dt);
   }
 
+  // Teleport: upright (keeping yaw if given), at rest, with no interpolation across the jump.
+  function place(x: number, y: number, z: number, yaw: number) {
+    body.setTranslation({ x, y, z }, true);
+    body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
+    body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    body.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    prevPos.copy(body.translation());
+    prevRot.copy(body.rotation());
+  }
+
+  // Right the truck where it is, a bit higher so it drops onto its wheels.
+  function flip() {
+    const p = body.translation();
+    const q = body.rotation();
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    place(p.x, p.y + T.flipLift, p.z, Math.atan2(-fwd.z, fwd.x));
+  }
+
+  // Put the truck upright at (x, z), facing the way it did.
+  function reset(x: number, z: number, groundY: number) {
+    const q = body.rotation();
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    place(x, groundY + T.flipLift, z, Math.atan2(-fwd.z, fwd.x));
+  }
+
   // Call after the physics steps of a frame; alpha = leftover accumulator / step.
   function render(alpha: number) {
     mesh.position.lerpVectors(prevPos, currPos.copy(body.translation()), alpha);
@@ -131,5 +157,5 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     });
   }
 
-  return { body, vehicle, mesh, update, render };
+  return { body, vehicle, mesh, update, render, flip, reset };
 }

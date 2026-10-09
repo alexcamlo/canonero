@@ -4,7 +4,7 @@ import { updateChaseCamera } from './camera';
 import { createChunks } from './chunks';
 import { readInput } from './input';
 import { createScene } from './scene';
-import { createHeight, seedFromUrl } from './terrain';
+import { createHeight, findFlatSpot, seedFromUrl } from './terrain';
 import { createTruck } from './truck';
 
 const STEP = 1 / 60;
@@ -21,6 +21,16 @@ chunks.update(new THREE.Vector3(), Infinity);
 
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0));
 camera.position.set(-10, height(-10, 0) + 4, 0);
+
+addEventListener('keydown', (e) => {
+  if (e.repeat) return;
+  if (e.code === 'KeyF') truck.flip();
+  if (e.code === 'KeyT') {
+    const p = truck.body.translation();
+    const spot = findFlatSpot(height, p.x, p.z);
+    truck.reset(spot.x, spot.z, height(spot.x, spot.z));
+  }
+});
 
 let acc = 0;
 let last = performance.now();

@@ -44,3 +44,20 @@ export function seedFromUrl() {
   }
   return seed;
 }
+
+const slopeAt = (h: (x: number, z: number) => number, x: number, z: number) =>
+  Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
+
+// Flattest point on a grid within `radius` of (x, z); the start itself is a candidate.
+export function findFlatSpot(h: (x: number, z: number) => number, x: number, z: number, radius = 30, step = 5) {
+  let best = { x, z };
+  let bestSlope = slopeAt(h, x, z);
+  for (let dx = -radius; dx <= radius; dx += step) {
+    for (let dz = -radius; dz <= radius; dz += step) {
+      if (Math.hypot(dx, dz) > radius) continue;
+      const s = slopeAt(h, x + dx, z + dz);
+      if (s < bestSlope) [best, bestSlope] = [{ x: x + dx, z: z + dz }, s];
+    }
+  }
+  return best;
+}

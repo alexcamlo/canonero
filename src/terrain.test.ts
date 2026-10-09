@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CHUNK_CELLS, chunkHeights } from './chunks';
-import { createHeight } from './terrain';
+import { createHeight, findFlatSpot } from './terrain';
 
 const samples = [
   [0, 0],
@@ -39,5 +39,17 @@ describe('chunkHeights', () => {
     const a = chunkHeights(height, 4, -1);
     const b = chunkHeights(height, 4, 0);
     for (let i = 0; i < N; i++) expect(at(a, i, N - 1)).toBe(at(b, i, 0));
+  });
+});
+
+describe('findFlatSpot', () => {
+  test('stays within radius and is no steeper than the start', () => {
+    const h = createHeight('dune');
+    const slope = (x: number, z: number) => Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
+    for (const [x, z] of samples) {
+      const p = findFlatSpot(h, x, z, 30);
+      expect(Math.hypot(p.x - x, p.z - z)).toBeLessThanOrEqual(30);
+      expect(slope(p.x, p.z)).toBeLessThanOrEqual(slope(x, z));
+    }
   });
 });
