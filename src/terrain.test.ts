@@ -168,7 +168,7 @@ describe('createGroundColor', () => {
     for (let x = -800; x <= 800 && !(soft && sand); x += 10) {
       for (let z = -800; z <= 800; z += 10) {
         if (surface(x, z) === 'soft') soft ??= a(x, z);
-        else if (Math.abs(x) < 2000) sand ??= a(x, z);
+        else sand ??= a(x, z);
       }
     }
     expect(soft).not.toEqual(sand);
