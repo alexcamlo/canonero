@@ -5,6 +5,7 @@ import { createChunks } from './chunks';
 import { readInput } from './input';
 import { createScene } from './scene';
 import { createHeight, seedFromUrl } from './terrain';
+import { createTracks } from './tracks';
 import { createTruck } from './truck';
 
 const STEP = 1 / 60;
@@ -20,6 +21,7 @@ const chunks = createChunks(world, scene, height);
 chunks.update(new THREE.Vector3(), Infinity);
 
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0));
+const tracks = createTracks(scene, truck);
 camera.position.set(-10, height(-10, 0) + 4, 0);
 
 let acc = 0;
@@ -36,6 +38,7 @@ renderer.setAnimationLoop((now) => {
   }
 
   truck.render(acc / STEP);
+  tracks.update(now / 1000);
   chunks.update(truck.mesh.position);
   updateChaseCamera(camera, truck.mesh, dt, height);
   follow(truck.mesh.position);
