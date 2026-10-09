@@ -125,7 +125,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     const box = shift(speed, range, gear);
     gear = box.gear;
     rpm = box.rpm;
-    const topSpeed = GEARBOX.topSpeed[range] * (T.airedTopSpeed + (1 - T.airedTopSpeed) * pressure);
+    const topSpeed = GEARBOX.topSpeed[range] * THREE.MathUtils.lerp(T.airedTopSpeed, 1, pressure);
     const force = T.engineForce * box.driveForceMultiplier;
     let engine = 0;
     let brake = input.throttle || input.brake ? 0 : T.idleBrake;
@@ -139,7 +139,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     }
 
     const target = (input.steer * T.maxSteer) / (1 + Math.abs(speed) / T.steerFalloff);
-    const steerRate = T.steerRate * (T.airedSteerRate + (1 - T.airedSteerRate) * pressure);
+    const steerRate = T.steerRate * THREE.MathUtils.lerp(T.airedSteerRate, 1, pressure);
     const steerDelta = THREE.MathUtils.clamp(target - steer, -steerRate * dt, steerRate * dt);
     steer += steerDelta;
 
@@ -147,7 +147,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
       vehicle.setWheelEngineForce(i, engine);
       vehicle.setWheelBrake(i, brake);
       vehicle.setWheelFrictionSlip(i, T.frictionSlip * traction(sinkage[i], pressure));
-      vehicle.setWheelSideFrictionStiffness(i, T.sideFrictionStiffness * (T.airedSideGrip + (1 - T.airedSideGrip) * pressure));
+      vehicle.setWheelSideFrictionStiffness(i, T.sideFrictionStiffness * THREE.MathUtils.lerp(T.airedSideGrip, 1, pressure));
       vehicle.setWheelSuspensionRestLength(i, T.suspensionRest - sinkage[i] * T.sinkDepth);
       if (i < 2) vehicle.setWheelSteering(i, steer);
     }
