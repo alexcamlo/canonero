@@ -1,6 +1,9 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { updateChaseCamera } from './camera';
+import { readInput } from './input';
 import { createScene } from './scene';
+import { createTruck } from './truck';
 
 const STEP = 1 / 60;
 
@@ -19,31 +22,24 @@ const ground = new THREE.Mesh(
 ground.receiveShadow = true;
 scene.add(ground);
 
-// Test box: proves physics drives rendering
-const boxBody = world.createRigidBody(
-  RAPIER.RigidBodyDesc.dynamic().setTranslation(0, 6, 0).setRotation({ x: 0.3, y: 0.2, z: 0.1, w: 0.93 }),
-);
-world.createCollider(RAPIER.ColliderDesc.cuboid(0.5, 0.5, 0.5), boxBody);
-const box = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial({ color: 0x8a4b2d }));
-box.castShadow = true;
-scene.add(box);
-
-camera.position.set(6, 4, 8);
-camera.lookAt(0, 0.5, 0);
+const truck = createTruck(world, scene, new THREE.Vector3(0, 1.5, 0));
+camera.position.set(-10, 4, 0);
 
 let acc = 0;
 let last = performance.now();
 renderer.setAnimationLoop((now) => {
-  acc += Math.min((now - last) / 1000, 0.25); // clamp so a stalled tab doesn't spiral
+  const dt = Math.min((now - last) / 1000, 0.25); // clamp so a stalled tab doesn't spiral
   last = now;
+  acc += dt;
+  const input = readInput();
   while (acc >= STEP) {
+    truck.update(input, STEP);
     world.step();
     acc -= STEP;
   }
 
-  box.position.copy(boxBody.translation());
-  box.quaternion.copy(boxBody.rotation());
-
-  follow(box.position);
+  truck.render(acc / STEP);
+  updateChaseCamera(camera, truck.mesh, dt);
+  follow(truck.mesh.position);
   renderer.render(scene, camera);
 });
