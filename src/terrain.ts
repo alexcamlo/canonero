@@ -12,16 +12,17 @@ function prng(seed: string) {
   };
 }
 
+const smooth = (t: number) => {
+  t = Math.max(0, Math.min(1, t));
+  return t * t * (3 - 2 * t);
+};
+
 // Weights in rolling, transverse, star order; shared with future surface lookup.
 export function regionWeights(seed: string) {
   const noise = createNoise2D(prng(`${seed}:regions`));
   const frequency = 0.0003;
   return (x: number, z: number): [number, number, number] => {
     const n = noise(x * frequency + 123.4, z * frequency + 456.7);
-    const smooth = (t: number) => {
-      t = Math.max(0, Math.min(1, t));
-      return t * t * (3 - 2 * t);
-    };
     const rolling = 1 - smooth((n + 0.45) / 0.35);
     const star = smooth((n - 0.1) / 0.35);
     return [rolling, 1 - rolling - star, star];
