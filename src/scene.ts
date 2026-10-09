@@ -12,7 +12,7 @@ export function createScene() {
   document.body.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
-  scene.fog = new THREE.Fog(HORIZON, 60, 260); // haze matches the horizon colour so far terrain melts into the sky
+  scene.fog = new THREE.Fog(HORIZON, 50, 240); // haze matches the horizon colour so far terrain melts into the sky
   const camera = new THREE.PerspectiveCamera(60, innerWidth / innerHeight, 0.1, 1000);
 
   scene.add(new THREE.HemisphereLight(0xffd2a0, 0xb8703e, 1.4));
