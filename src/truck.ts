@@ -1,6 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Input } from './input';
+import { GEARBOX, shift, type Range } from './gearbox';
 
 // Truck faces +x (Rapier's default vehicle forward axis), y is up, +z is the right side.
 export const TRUCK = {
@@ -19,8 +20,7 @@ export const TRUCK = {
   maxSuspensionForce: 40000, // N per wheel
   frictionSlip: 2.2,
   sideFrictionStiffness: 0.9,
-  engineForce: 2000, // N per wheel, all four driven
-  topSpeed: 30, // m/s, engine force fades out (quadratically) to zero here
+  engineForce: 2000, // N per wheel, all four driven, before the gearbox multiplier; fades out (quadratically) to zero at the range's top speed
   reverseSpeed: 8, // m/s
   brakeForce: 50, // per wheel
   idleBrake: 2, // engine braking when no pedal is pressed
@@ -92,6 +92,9 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   const currPos = new THREE.Vector3();
   const currRot = new THREE.Quaternion();
   let steer = 0;
+  let range: Range = 'high';
+  let gear = 1;
+  let rpm = 0;
 
   // Call once per fixed physics step, before world.step().
   function update(input: Input, dt: number) {
@@ -99,15 +102,20 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     prevRot.copy(body.rotation());
 
     const speed = vehicle.currentVehicleSpeed();
+    const box = shift(speed, range, gear);
+    gear = box.gear;
+    rpm = box.rpm;
+    const topSpeed = GEARBOX.topSpeed[range];
+    const force = T.engineForce * box.driveForceMultiplier;
     let engine = 0;
     let brake = input.throttle || input.brake ? 0 : T.idleBrake;
     if (input.throttle > 0) {
       if (speed < -0.5) brake = input.throttle * T.brakeForce;
-      else engine = input.throttle * T.engineForce * Math.max(0, 1 - (speed / T.topSpeed) ** 2);
+      else engine = input.throttle * force * Math.max(0, 1 - (speed / topSpeed) ** 2);
     }
     if (input.brake > 0) {
       if (speed > 0.5) brake = input.brake * T.brakeForce;
-      else engine = -input.brake * T.engineForce * Math.max(0, 1 + speed / T.reverseSpeed);
+      else engine = -input.brake * force * Math.max(0, 1 + speed / T.reverseSpeed);
     }
 
     const target = (input.steer * T.maxSteer) / (1 + Math.abs(speed) / T.steerFalloff);
@@ -131,5 +139,10 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     });
   }
 
-  return { body, vehicle, mesh, update, render };
+  function toggleRange() {
+    range = range === 'high' ? 'low' : 'high';
+  }
+
+  // gear/rpm are exposed for the later HUD and audio tickets
+  return { body, vehicle, mesh, update, render, toggleRange, state: () => ({ range, gear, rpm }) };
 }
