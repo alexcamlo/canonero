@@ -1,4 +1,4 @@
-export type Input = { throttle: number; brake: number; steer: number; rangeToggle: boolean }; // steer: +1 = left
+export type Input = { throttle: number; brake: number; steer: number; rangeToggle: boolean; airDown: boolean; compressor: boolean }; // steer: +1 = left
 
 const down = new Set<string>();
 addEventListener('keydown', (e) => down.add(e.code));
@@ -23,5 +23,7 @@ export function readInput(): Input {
     brake: stronger(key('KeyS', 'ArrowDown'), pad?.buttons[6]?.value ?? 0), // LT; brakes while rolling forward, reverses once stopped
     steer: stronger(key('KeyA', 'ArrowLeft') - key('KeyD', 'ArrowRight'), -deadzone(pad?.axes[0] ?? 0)),
     rangeToggle,
+    airDown: key('KeyP') > 0 || !!pad?.buttons[13]?.pressed, // dpad down
+    compressor: key('KeyO') > 0 || !!pad?.buttons[12]?.pressed, // dpad up
   };
 }
