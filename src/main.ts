@@ -5,7 +5,7 @@ import { createChunks } from './chunks';
 import { createHud } from './hud';
 import { readInput } from './input';
 import { createScene } from './scene';
-import { createHeight, createSurface, findFlatSpot, seedFromUrl } from './terrain';
+import { createGroundColor, createHeight, createSurface, findFlatSpot, seedFromUrl } from './terrain';
 import { createTracks } from './tracks';
 import { createTruck } from './truck';
 
@@ -20,7 +20,7 @@ const { renderer, scene, camera, follow } = createScene();
 const seed = seedFromUrl();
 const height = createHeight(seed);
 const surface = createSurface(seed);
-const chunks = createChunks(world, scene, height);
+const chunks = createChunks(world, scene, height, createGroundColor(seed));
 chunks.update(new THREE.Vector3(), Infinity);
 
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0), surface);

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CHUNK_CELLS, chunkHeights } from './chunks';
-import { createHeight, createSurface, findFlatSpot, regionWeights } from './terrain';
+import { createGroundColor, createHeight, createSurface, findFlatSpot, regionWeights } from './terrain';
 
 const samples = [
   [0, 0],
@@ -155,5 +155,22 @@ describe('findFlatSpot', () => {
       expect(Math.hypot(p.x - x, p.z - z)).toBeLessThanOrEqual(30);
       expect(slope(p.x, p.z)).toBeLessThanOrEqual(slope(x, z));
     }
+  });
+});
+
+describe('createGroundColor', () => {
+  test('is deterministic and riverbeds differ from the sand around them', () => {
+    const a = createGroundColor('dune');
+    const surface = createSurface('dune');
+    expect(a(10, 20)).toEqual(createGroundColor('dune')(10, 20));
+    let soft: number[] | undefined;
+    let sand: number[] | undefined;
+    for (let x = -800; x <= 800 && !(soft && sand); x += 10) {
+      for (let z = -800; z <= 800; z += 10) {
+        if (surface(x, z) === 'soft') soft ??= a(x, z);
+        else sand ??= a(x, z);
+      }
+    }
+    expect(soft).not.toEqual(sand);
   });
 });
