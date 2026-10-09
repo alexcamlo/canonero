@@ -132,19 +132,17 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     prevRot.copy(body.rotation());
   }
 
-  // Right the truck where it is, a bit higher so it drops onto its wheels.
-  function flip() {
-    const p = body.translation();
-    const q = body.rotation();
-    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
-    place(p.x, p.y + T.flipLift, p.z, Math.atan2(-fwd.z, fwd.x));
-  }
-
-  // Put the truck upright at (x, z), facing the way it did.
+  // Put the truck upright at (x, z), dropped from a bit above groundY, facing the way it did.
   function reset(x: number, z: number, groundY: number) {
     const q = body.rotation();
     const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
     place(x, groundY + T.flipLift, z, Math.atan2(-fwd.z, fwd.x));
+  }
+
+  // Right the truck where it is.
+  function flip() {
+    const p = body.translation();
+    reset(p.x, p.z, p.y);
   }
 
   // Call after the physics steps of a frame; alpha = leftover accumulator / step.
