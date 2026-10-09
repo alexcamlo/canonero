@@ -4,7 +4,7 @@ import { updateChaseCamera } from './camera';
 import { createChunks } from './chunks';
 import { readInput } from './input';
 import { createScene } from './scene';
-import { createHeight, findFlatSpot, seedFromUrl } from './terrain';
+import { createHeight, findFlatSpot, seedFromUrl, SOFT_PATCHES } from './terrain';
 import { createTracks } from './tracks';
 import { createTruck } from './truck';
 
@@ -19,6 +19,19 @@ const { renderer, scene, camera, follow } = createScene();
 const height = createHeight(seedFromUrl());
 const chunks = createChunks(world, scene, height);
 chunks.update(new THREE.Vector3(), Infinity);
+
+// Soft patches as darker discs draped over the dunes (#12 replaces this with real materials).
+const softMaterial = new THREE.MeshLambertMaterial({ color: 0xb98450, polygonOffset: true, polygonOffsetFactor: -2 });
+for (const p of SOFT_PATCHES) {
+  const geometry = new THREE.RingGeometry(0, p.r, 48, 24).rotateX(-Math.PI / 2);
+  const pos = geometry.attributes.position;
+  for (let i = 0; i < pos.count; i++) pos.setY(i, height(p.x + pos.getX(i), p.z + pos.getZ(i)) + 0.05);
+  geometry.computeVertexNormals();
+  const disc = new THREE.Mesh(geometry, softMaterial);
+  disc.position.set(p.x, 0, p.z);
+  disc.receiveShadow = true;
+  scene.add(disc);
+}
 
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0));
 const tracks = createTracks(scene, truck);

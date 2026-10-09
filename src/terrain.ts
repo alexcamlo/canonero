@@ -94,3 +94,15 @@ export function findFlatSpot(h: (x: number, z: number) => number, x: number, z: 
   }
   return best;
 }
+
+export type Surface = 'sand' | 'soft';
+
+// ponytail: fixed test patches around spawn; #11 replaces these with seeded riverbeds.
+export const SOFT_PATCHES = [
+  { x: 55, z: 0, r: 25 },
+  { x: -40, z: 50, r: 18 },
+  { x: 10, z: -60, r: 15 },
+];
+
+export const surfaceAt = (x: number, z: number): Surface =>
+  SOFT_PATCHES.some((p) => Math.hypot(x - p.x, z - p.z) < p.r) ? 'soft' : 'sand';

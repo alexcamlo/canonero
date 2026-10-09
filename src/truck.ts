@@ -2,6 +2,8 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Input } from './input';
 import { GEARBOX, shift, type Range } from './gearbox';
+import { drag, stepSinkage, traction } from './sinkage';
+import { surfaceAt } from './terrain';
 
 // Truck faces +x (Rapier's default vehicle forward axis), y is up, +z is the right side.
 export const TRUCK = {
@@ -28,6 +30,9 @@ export const TRUCK = {
   steerRate: 1.6, // rad/s, how fast the wheel turns toward the target
   flipLift: 1.5, // m, how far flip/reset drop the truck from
   steerFalloff: 18, // m/s; steering lock halves at this speed
+  sinkDepth: 0.2, // m, how far a fully sunk wheel sits into the sand (suspension rest shortens by the same)
+  spinSpeed: 2, // m/s; below this, throttle counts as wheelspin (fully at standstill)
+  rockSpeed: 0.2, // m/s the truck must move each way for a direction change to count as rocking
 };
 
 const T = TRUCK;
@@ -96,6 +101,8 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   let range: Range = 'high';
   let gear = 1;
   let rpm = 0;
+  const sinkage = [0, 0, 0, 0];
+  let dir = 0; // last direction of travel, for rocking
 
   // Call once per fixed physics step, before world.step().
   function update(input: Input, dt: number) {
@@ -120,14 +127,38 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     }
 
     const target = (input.steer * T.maxSteer) / (1 + Math.abs(speed) / T.steerFalloff);
-    steer += THREE.MathUtils.clamp(target - steer, -T.steerRate * dt, T.steerRate * dt);
+    const steerDelta = THREE.MathUtils.clamp(target - steer, -T.steerRate * dt, T.steerRate * dt);
+    steer += steerDelta;
 
     for (let i = 0; i < 4; i++) {
       vehicle.setWheelEngineForce(i, engine);
       vehicle.setWheelBrake(i, brake);
+      vehicle.setWheelFrictionSlip(i, T.frictionSlip * traction(sinkage[i]));
+      vehicle.setWheelSuspensionRestLength(i, T.suspensionRest - sinkage[i] * T.sinkDepth);
       if (i < 2) vehicle.setWheelSteering(i, steer);
     }
     vehicle.updateVehicle(dt);
+
+    // Raycast wheels never really spin, so wheelspin = throttle without the truck moving.
+    const wheelSpin = engine ? Math.max(0, 1 - Math.abs(speed) / T.spinSpeed) : 0;
+    const moving = Math.abs(speed) > T.rockSpeed ? Math.sign(speed) : 0;
+    const dirChanged = moving !== 0 && dir !== 0 && moving !== dir;
+    if (moving) dir = moving;
+    const q = body.rotation();
+    const fwd = new THREE.Vector3(1, 0, 0).applyQuaternion(new THREE.Quaternion(q.x, q.y, q.z, q.w));
+    const vf = fwd.dot(body.linvel() as THREE.Vector3);
+    for (let i = 0; i < 4; i++) {
+      const p = vehicle.wheelIsInContact(i) && vehicle.wheelContactPoint(i);
+      if (!p) continue; // airborne wheels keep their sinkage
+      // Drag acts like friction: it can stop this wheel's share of forward motion, never push the truck back.
+      const j = -Math.sign(vf) * Math.min((Math.abs(vf) * T.mass) / 4, drag(sinkage[i]) * dt);
+      body.applyImpulseAtPoint(fwd.clone().multiplyScalar(j), p, true);
+      sinkage[i] = stepSinkage(
+        sinkage[i],
+        { surface: surfaceAt(p.x, p.z), groundSpeed: speed, wheelSpin, steerRate: steerDelta / dt, isFront: i < 2, dirChanged },
+        dt,
+      );
+    }
   }
 
   // Teleport: upright (keeping yaw if given), at rest, with no interpolation across the jump.
@@ -135,6 +166,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     body.setTranslation({ x, y, z }, true);
     body.setRotation({ x: 0, y: Math.sin(yaw / 2), z: 0, w: Math.cos(yaw / 2) }, true);
     body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    sinkage.fill(0); // fresh ground, fresh start
     body.setAngvel({ x: 0, y: 0, z: 0 }, true);
     prevPos.copy(body.translation());
     prevRot.copy(body.rotation());
@@ -158,7 +190,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     mesh.position.lerpVectors(prevPos, currPos.copy(body.translation()), alpha);
     mesh.quaternion.slerpQuaternions(prevRot, currRot.copy(body.rotation()), alpha);
     wheels.forEach((w, i) => {
-      w.position.y = T.wheelY - (vehicle.wheelSuspensionLength(i) ?? T.suspensionRest);
+      w.position.y = T.wheelY - (vehicle.wheelSuspensionLength(i) ?? T.suspensionRest) - sinkage[i] * T.sinkDepth;
       w.rotation.set(0, vehicle.wheelSteering(i) ?? 0, vehicle.wheelRotation(i) ?? 0, 'YXZ');
     });
   }
@@ -167,6 +199,6 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     range = range === 'high' ? 'low' : 'high';
   }
 
-  // gear/rpm are exposed for the later HUD and audio tickets
-  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm }) };
+  // gear/rpm/sinkage are exposed for the later HUD and audio tickets
+  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm, sinkage: [...sinkage] }) };
 }
