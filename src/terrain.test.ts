@@ -41,36 +41,42 @@ describe('createSurface', () => {
 });
 
 describe('createHeight', () => {
-  test('riverbed centres have a gentle slope along the channel', () => {
+  test('most banks outside star regions are drivable', () => {
+    for (const seed of ['dune', 'abc', 's155']) {
+      const height = createHeight(seed);
+      const surface = createSurface(seed);
+      const weights = regionWeights(seed);
+      const slopes: number[] = [];
+      for (let x = -1200; x <= 1200; x += 20) {
+        for (let z = -1200; z <= 1200; z += 20) {
+          if (weights(x, z)[2] > 0.1) continue;
+          const neighbours = [[x - 4, z], [x + 4, z], [x, z - 4], [x, z + 4]];
+          if (neighbours.every(([nx, nz]) => surface(nx, nz) === surface(x, z))) continue;
+          slopes.push(Math.hypot(height(x + 1, z) - height(x - 1, z), height(x, z + 1) - height(x, z - 1)) / 2);
+        }
+      }
+      slopes.sort((a, b) => a - b);
+      expect(slopes.length).toBeGreaterThan(100);
+      expect(slopes[Math.floor(slopes.length * 0.9)]).toBeLessThan(0.8);
+    }
+  });
+
+  test('riverbed interiors are mostly flat', () => {
     const height = createHeight('dune');
     const surface = createSurface('dune');
-    const centre = (x: number, z: number) => {
-      let left = x;
-      let right = x;
-      while (x - left < 60 && surface(left - 0.5, z) === 'soft') left -= 0.5;
-      while (right - x < 60 && surface(right + 0.5, z) === 'soft') right += 0.5;
-      if (right - left > 60) return NaN;
-      return (left + right) / 2;
-    };
-    let channels = 0;
+    let interior = 0;
     let flat = 0;
-    for (let z = -1000; z <= 1000; z += 80) {
-      for (let x = -1000; x <= 1000; x += 20) {
-        if (surface(x, z) !== 'soft') continue;
-        const cx = centre(x, z);
-        if (!Number.isFinite(cx)) continue;
-        if (surface(cx, z - 1) !== 'soft' || surface(cx, z + 1) !== 'soft') continue;
-        const before = centre(cx, z - 1);
-        const after = centre(cx, z + 1);
-        if (!Number.isFinite(before) || !Number.isFinite(after)) continue;
-        const slope = Math.abs(height(after, z + 1) - height(before, z - 1)) / Math.hypot(after - before, 2);
-        if (slope < 0.03) flat++;
-        channels++;
+    for (let x = -1200; x <= 1200; x += 20) {
+      for (let z = -1200; z <= 1200; z += 20) {
+        const points = [[x, z], [x - 4, z], [x + 4, z], [x, z - 4], [x, z + 4]];
+        if (!points.every(([px, pz]) => surface(px, pz) === 'soft')) continue;
+        const slope = Math.hypot(height(x + 1, z) - height(x - 1, z), height(x, z + 1) - height(x, z - 1)) / 2;
+        if (slope < 0.15) flat++;
+        interior++;
       }
     }
-    expect(channels).toBeGreaterThan(20);
-    // Near tangencies, the midpoint of a soft band can still lie on a bank.
-    expect(flat / channels).toBeGreaterThan(0.95);
+    expect(interior).toBeGreaterThan(100);
+    expect(flat / interior).toBeGreaterThan(0.8);
   });
 
   test('star regions have challenging slip faces at the 2 m grid spacing', () => {

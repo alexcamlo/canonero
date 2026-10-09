@@ -2,7 +2,7 @@ import { createNoise2D } from 'simplex-noise';
 
 const RIVER = {
   frequency: 0.0015, warpFrequency: 0.002, warp: 0.35, distanceScale: 160,
-  halfWidth: 10, bankWidth: 8, floorFrequency: 0.0005, floorAmplitude: 3, floorHeight: -10,
+  halfWidth: 10, bankWidth: 32,
 };
 
 // mulberry32 seeded from an FNV-1a hash of the seed string
@@ -81,7 +81,7 @@ export function createHeight(seed: string) {
     const base = swell(x * 0.0025, z * 0.0025) * 10; // broad rises and basins
     const [r, t, s] = weights(wx, wz);
     const dunes = base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
-    const floor = swell(x * RIVER.floorFrequency, z * RIVER.floorFrequency) * RIVER.floorAmplitude + RIVER.floorHeight; // only a broad swell survives in the channel
+    const floor = base - 1; // follow the broad terrain so banks stay shallow
     return dunes + (floor - dunes) * bed(wx, wz);
   };
 }
