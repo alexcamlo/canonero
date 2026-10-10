@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
-import { drag, stepSinkage, traction, type Wheel } from './sinkage';
+import { drag, plough, stepSinkage, traction, type Wheel } from './sinkage';
 
-const still: Wheel = { surface: 'soft', groundSpeed: 0, wheelSpin: 0, steerRate: 0, pressure: 1, isFront: false, dirChanged: false };
+const still: Wheel = { softness: 1, groundSpeed: 0, wheelSpin: 0, steerRate: 0, pressure: 1, isFront: false, dirChanged: false, plough: 0 };
 
 // Run the step for `seconds` at 60 Hz.
 function run(s: number, w: Partial<Wheel>, seconds: number) {
@@ -24,13 +24,20 @@ describe('stepSinkage', () => {
   });
 
   test('firm sand only lets a wheel sink a little', () => {
-    const shallow = run(0, { surface: 'sand', wheelSpin: 1 }, 30);
+    const shallow = run(0, { softness: 0, wheelSpin: 1 }, 30);
     expect(shallow).toBeGreaterThan(0);
     expect(shallow).toBeLessThan(0.2);
   });
 
-  test('rolling from soft onto sand climbs back out', () => {
-    expect(run(0.9, { surface: 'sand', groundSpeed: 1 }, 3)).toBeLessThan(0.3);
+  test('half-soft sand sinks slower and less deep than soft sand', () => {
+    const half = run(0, { softness: 0.5, wheelSpin: 1 }, 30);
+    expect(half).toBeGreaterThan(run(0, { softness: 0, wheelSpin: 1 }, 30));
+    expect(half).toBeLessThan(0.8);
+    expect(run(0, { softness: 0.5 }, 1)).toBeLessThan(run(0, {}, 1));
+  });
+
+  test('rolling from soft onto firm sand climbs back out', () => {
+    expect(run(0.9, { softness: 0, groundSpeed: 1 }, 3)).toBeLessThan(0.3);
   });
 
   test('rocking: changing direction climbs out of the ruts', () => {
@@ -44,12 +51,28 @@ describe('stepSinkage', () => {
   });
 });
 
+describe('braking hard downhill', () => {
+  test('ploughs only when braking hard on a steep descent', () => {
+    expect(plough(1, 0.5)).toBe(1); // full brake, 30° nose down
+    expect(plough(0.3, 0.5)).toBe(0); // feathering the brake
+    expect(plough(1, 0.15)).toBe(0); // gentle descent
+    expect(plough(1, -0.5)).toBe(0); // braking uphill
+  });
+
+  test('ploughing digs the front wheels in fast, past the firm-sand cap', () => {
+    const dig = { softness: 0, groundSpeed: 6, plough: 1 };
+    expect(run(0, { ...dig, isFront: true }, 0.5)).toBeGreaterThan(0.5);
+    expect(run(0, { ...dig, isFront: false }, 0.5)).toBe(0);
+  });
+});
+
 test('sinkage costs traction and adds drag', () => {
   expect(traction(0)).toBe(1);
   expect(traction(1)).toBeLessThan(traction(0.5));
   expect(traction(1)).toBeGreaterThan(0);
   expect(drag(0)).toBe(0);
   expect(drag(1)).toBeGreaterThan(drag(0.5));
+  expect(drag(0, 1)).toBeGreaterThan(0); // loose sand drags even on top
 });
 
 describe('air pressure', () => {

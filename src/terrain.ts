@@ -31,13 +31,17 @@ export function regionWeights(seed: string) {
 
 // Per-region sand tones (sRGB 0-1).
 const GROUND = [[0.93, 0.72, 0.47], [0.92, 0.6, 0.33], [0.9, 0.5, 0.25]];
+const LOOSE = { tone: [0.97, 0.84, 0.66], mix: 0.3 }; // loose sand reads paler, like fresh slip-face sand
 
-// Ground colour at world (x, z): region palettes blended by weight.
+// Ground colour at world (x, z): region palettes blended by weight, paled by softness so soft sand can be read.
 export function createGroundColor(seed: string) {
   const weights = regionWeights(seed);
-  return (x: number, z: number): [number, number, number] => {
+  return (x: number, z: number, soft: number): [number, number, number] => {
     const w = weights(x, z);
-    return [0, 1, 2].map((c) => w[0] * GROUND[0][c] + w[1] * GROUND[1][c] + w[2] * GROUND[2][c]) as [number, number, number];
+    return [0, 1, 2].map((c) => {
+      const sand = w[0] * GROUND[0][c] + w[1] * GROUND[1][c] + w[2] * GROUND[2][c];
+      return sand + (LOOSE.tone[c] - sand) * LOOSE.mix * soft;
+    }) as [number, number, number];
   };
 }
 
@@ -101,24 +105,46 @@ export function seedFromUrl() {
 const slopeAt = (h: (x: number, z: number) => number, x: number, z: number) =>
   Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
 
-// Flattest firm point on a grid within `radius` of (x, z); the start itself is a candidate.
-// Soft sand is skipped so reset never drops you back in.
-export function findFlatSpot(h: (x: number, z: number) => number, surface: (x: number, z: number) => Surface, x: number, z: number, radius = 30, step = 5) {
+// Flattest, firmest point on a grid within `radius` of (x, z); the start itself is a candidate.
+// Softness counts like slope so reset never drops you on a slip face or in a bowl.
+export function findFlatSpot(h: (x: number, z: number) => number, soft: (x: number, z: number) => number, x: number, z: number, radius = 30, step = 5) {
+  const score = (x: number, z: number) => slopeAt(h, x, z) + soft(x, z);
   let best = { x, z };
-  let bestSlope = surface(x, z) === 'soft' ? Infinity : slopeAt(h, x, z);
+  let bestScore = score(x, z);
   for (let dx = -radius; dx <= radius; dx += step) {
     for (let dz = -radius; dz <= radius; dz += step) {
-      if (Math.hypot(dx, dz) > radius || surface(x + dx, z + dz) === 'soft') continue;
-      const s = slopeAt(h, x + dx, z + dz);
-      if (s < bestSlope) [best, bestSlope] = [{ x: x + dx, z: z + dz }, s];
+      if (Math.hypot(dx, dz) > radius) continue;
+      const s = score(x + dx, z + dz);
+      if (s < bestScore) [best, bestScore] = [{ x: x + dx, z: z + dz }, s];
     }
   }
   return best;
 }
 
-export type Surface = 'sand' | 'soft';
+// Sand softness, 0 wind-packed .. 1 loose. The wind blows along +x (see transverse()).
+export const SOFT = {
+  step: 2, // m between stencil samples; matches the chunk grid so colours reuse its heights
+  base: 0.1, // flat open ground
+  lee: 2, // per unit of slope falling toward +x: slip faces collect sand blown over the crest
+  windward: 1.5, // per unit of slope rising toward +x: the wind packs the stoss side
+  crest: 16, // per 1/m of convex curvature: loose grains pile up on sharp crests
+  bowl: 25, // per 1/m of concave curvature: avalanching sand settles in hollows and at the toe of slip faces
+  curveFloor: 0.01, // 1/m; broad shoulders and gentle swells don't count
+};
 
-// ponytail: riverbeds were the only soft sand and are gone; everything is firm until soft sand gets a new home.
-export function createSurface(_seed: string) {
-  return (_x: number, _z: number): Surface => 'sand';
+const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
+
+// Softness from heights at a point and `d` m along +x, -x, +z, -z.
+export function softness(c: number, xp: number, xm: number, zp: number, zm: number, d = SOFT.step) {
+  const gx = (xp - xm) / (2 * d);
+  const curve = (xp + xm + zp + zm - 4 * c) / (d * d); // Laplacian: crest < 0 < bowl
+  return clamp01(
+    SOFT.base + SOFT.lee * Math.max(0, -gx) - SOFT.windward * Math.max(0, gx) +
+    SOFT.crest * Math.max(0, -curve - SOFT.curveFloor) + SOFT.bowl * Math.max(0, curve - SOFT.curveFloor),
+  );
+}
+
+export function createSoftness(height: (x: number, z: number) => number) {
+  const d = SOFT.step;
+  return (x: number, z: number) => softness(height(x, z), height(x + d, z), height(x - d, z), height(x, z + d), height(x, z - d));
 }
