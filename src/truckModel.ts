@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MODEL = {
   paint: 0xbfc1b9,
@@ -39,10 +40,10 @@ export function createTruckModel(): THREE.Group {
     return add(new THREE.BoxGeometry(w, h, d), material, x, y, z);
   }
 
-  function extrude(points: number[][], depth: number, material: THREE.Material, z: number, bevel = 0) {
+  function extrude(points: number[][], depth: number, material: THREE.Material, z: number, bevel = 0, steps = 1) {
     const shape = new THREE.Shape(points.map(([x, y]) => new THREE.Vector2(x, y)));
     return add(new THREE.ExtrudeGeometry(shape, {
-      depth, steps: 1, bevelEnabled: bevel > 0, bevelSegments: 1, bevelSize: bevel, bevelThickness: bevel,
+      depth, steps, bevelEnabled: bevel > 0, bevelSegments: material === paint ? 2 : 1, bevelSize: bevel, bevelThickness: bevel,
     }), material, 0, 0, z);
   }
 
@@ -74,19 +75,19 @@ export function createTruckModel(): THREE.Group {
     }
   }
   sill.push([2.16, MODEL.archY]);
-  extrude([...sill, [2.16, 0.26], [0.88, 0.43], [-2.15, 0.43]], MODEL.halfWidth * 2, paint, -MODEL.halfWidth, 0.025);
+  extrude([...sill, [2.16, 0.26], [0.88, 0.43], [-2.15, 0.43]], MODEL.halfWidth * 2 - 0.02, paint, -MODEL.halfWidth + 0.01, 0.035, 4);
 
   const cabin = extrude([
-    [-2.15, 0.42], [0.9, 0.42], [0.32, 1.06], [0.2, 1.1], [-1.95, 1.1], [-2.06, 1.03],
-  ], MODEL.halfWidth * 2, paint, -MODEL.halfWidth);
+    [-2.105, 0.42], [0.86, 0.42], [0.28, 1.06], [0.16, 1.1], [-1.905, 1.1], [-2.015, 1.03],
+  ], (MODEL.halfWidth - 0.045) * 2, paint, -MODEL.halfWidth + 0.045, 0.045, 2);
   const vertices = cabin.geometry.getAttribute('position');
   for (let i = 0; i < vertices.count; i++) {
     const inset = Math.max(0, vertices.getY(i) - 0.43) * 0.15;
-    vertices.setZ(i, vertices.getZ(i) + (vertices.getZ(i) > MODEL.halfWidth ? -inset : inset));
+    vertices.setZ(i, vertices.getZ(i) - Math.sign(vertices.getZ(i) + cabin.position.z) * inset);
   }
   cabin.geometry.computeVertexNormals();
 
-  // Three facets across each flare soften the wide, rounded arches without smoothing the body panels.
+  // Shared vertices blend the flares smoothly into their rounded shoulders.
   function flare(axle: number, side: number) {
     const positions = [];
     const indices = [];
@@ -107,22 +108,22 @@ export function createTruckModel(): THREE.Group {
     const geometry = new THREE.BufferGeometry();
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geometry.setIndex(indices);
-    const faceted = geometry.toNonIndexed();
-    geometry.dispose();
-    faceted.computeVertexNormals();
-    add(faceted, paint);
+    geometry.computeVertexNormals();
+    add(geometry, paint);
   }
 
   for (const side of [-1, 1]) {
     for (const axle of [-MODEL.axleX, MODEL.axleX]) {
       flare(axle, side);
-      add(new THREE.TorusGeometry(MODEL.archRadius + 0.01, 0.015, 3, 12, Math.PI), trim, axle, MODEL.archY, side * 0.935);
+      const edging = new THREE.RingGeometry(MODEL.archRadius, MODEL.archRadius + 0.025, 12, 1, 0, Math.PI);
+      if (side < 0) edging.rotateY(Math.PI);
+      add(edging, trim, axle, MODEL.archY, side * 0.947);
       const well = [];
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
         well.push([axle + 0.53 * Math.cos(angle), MODEL.archY + 0.53 * Math.sin(angle)]);
       }
-      extrude(well, 0.025, trim, side > 0 ? 0.58 : -0.605);
+      panel((side > 0 ? well : well.reverse()).map(([x, y]) => [x, y, side * 0.6]), trim);
     }
 
     const sideWindow = (points: number[][], material = glass) => {
@@ -154,14 +155,19 @@ export function createTruckModel(): THREE.Group {
     box(0.015, 0.12, 0.09, 0.509, 0.58, side * 1.01, glass);
   }
 
-  panel([[0.852, 0.49, -0.77], [0.852, 0.49, 0.77], [0.382, 1.01, 0.7], [0.382, 1.01, -0.7]]);
-  panel([[-2.148, 0.49, -0.76], [-2.148, 0.49, 0.76], [-2.072, 1.0, 0.7], [-2.072, 1.0, -0.7]], tint);
+  // Cross-sections keep the glass on the crowned windscreen and rounded rear corners.
+  for (let i = 0; i < 4; i++) {
+    const left = -1 + i / 2;
+    const right = left + 0.5;
+    panel([[0.882, 0.49, left * 0.77], [0.882, 0.49, right * 0.77], [0.412, 1.01, right * 0.7], [0.412, 1.01, left * 0.7]]);
+    panel([[-2.148, 0.49, left * 0.76], [-2.148, 0.49, right * 0.76], [-2.072, 1.0, right * 0.7], [-2.072, 1.0, left * 0.7]], tint);
+  }
 
-  extrude([[1.98, -0.44], [2.2, -0.4], [2.24, -0.29], [2.22, -0.1], [1.98, -0.1]], 1.78, paint, -0.89, 0.045);
-  box(0.015, 0.13, 0.87, 2.286, -0.275, 0);
-  box(0.018, 0.025, 0.84, 2.296, -0.275, 0, paint);
-  box(0.035, 0.29, 0.98, 2.178, 0.085, 0, rim); // blank grille
-  for (let i = -5; i <= 5; i++) box(0.035, 0.245, 0.027, 2.205, 0.085, i * 0.081, trim);
+  extrude([[1.98, -0.44], [2.2, -0.4], [2.24, -0.29], [2.22, -0.1], [1.98, -0.1]], 1.7, paint, -0.85, 0.065, 4);
+  box(0.015, 0.13, 0.87, 2.313, -0.275, 0);
+  box(0.018, 0.025, 0.84, 2.327, -0.275, 0, paint);
+  box(0.035, 0.29, 0.98, 2.207, 0.085, 0, rim); // blank grille
+  for (let i = -5; i <= 5; i++) box(0.035, 0.245, 0.027, 2.234, 0.085, i * 0.081, trim);
   for (const side of [-1, 1]) {
     box(0.045, 0.32, 0.42, 2.19, 0.095, side * 0.69);
     const headlamp = extrude([
@@ -170,8 +176,8 @@ export function createTruckModel(): THREE.Group {
     headlamp.rotation.y = Math.PI / 2;
     headlamp.position.set(2.217, 0.095, side * 0.69);
     box(0.22, 0.27, 0.055, 2.06, 0.095, side * 0.859, lens);
-    box(0.022, 0.16, 0.29, 2.276, -0.265, side * 0.64, rim);
-    box(0.028, 0.12, 0.245, 2.291, -0.265, side * 0.64, lens);
+    box(0.022, 0.16, 0.29, 2.312, -0.265, side * 0.64, rim);
+    box(0.028, 0.12, 0.245, 2.33, -0.265, side * 0.64, lens);
     box(0.13, 0.08, 0.055, 2.26, -0.075, side * 0.35);
     add(new THREE.CylinderGeometry(0.135, 0.135, 0.075, 12).rotateZ(Math.PI / 2), rim, 2.31, 0.045, side * 0.35);
     add(new THREE.CylinderGeometry(0.113, 0.113, 0.012, 12).rotateZ(Math.PI / 2), lens, 2.354, 0.045, side * 0.35);
@@ -180,7 +186,7 @@ export function createTruckModel(): THREE.Group {
     box(0.09, 0.17, 0.15, -2.18, 0.29, side * 0.758, lens);
   }
 
-  extrude([[-2.27, -0.4], [-2.2, -0.48], [-2.03, -0.48], [-2.03, -0.27], [-2.27, -0.27]], 1.78, paint, -0.89, 0.03);
+  extrude([[-2.27, -0.4], [-2.2, -0.48], [-2.03, -0.48], [-2.03, -0.27], [-2.27, -0.27]], 1.7, paint, -0.85, 0.065, 4);
   box(0.035, 0.62, 1.27, -2.173, 0.07, 0, trim);
   box(0.045, 0.59, 1.24, -2.196, 0.07, 0, paint); // inset outline of the single side-hinged door
   box(0.065, 0.065, 0.19, -2.23, 0.21, -0.45, trim);
@@ -207,6 +213,40 @@ export function createTruckModel(): THREE.Group {
   const spareStripe = new THREE.RingGeometry(0.211, 0.22, 24).rotateY(-Math.PI / 2);
   add(spareStripe, pinstripe, -2.491, 0.30, 0.16);
   add(new THREE.CylinderGeometry(0.08, 0.08, 0.085, 8).rotateZ(Math.PI / 2), trim, -2.49, 0.30, 0.16);
+
+  // Bend the shell and attached details together, keeping lenses and trim on the curved surface.
+  body.updateMatrixWorld(true);
+  body.traverse((object) => {
+    if (!(object instanceof THREE.Mesh)) return;
+    const isSpare = object.position.x < -2.3;
+    const geometry = object.geometry;
+    geometry.applyMatrix4(object.matrix);
+    object.position.set(0, 0, 0);
+    object.quaternion.identity();
+    const positions = geometry.getAttribute('position');
+    for (let i = 0; i < positions.count; i++) {
+      let x = positions.getX(i);
+      let y = positions.getY(i);
+      let z = positions.getZ(i);
+      if (!isSpare) { // spare stays round and separate from the tailgate corners
+        const end = THREE.MathUtils.smoothstep(Math.abs(x), 1.75, 2.3);
+        x -= Math.sign(x) * 0.2 * end * (Math.abs(z) / 0.94) ** 4;
+        const bonnet = THREE.MathUtils.smoothstep(x, 0.82, 1.02) * THREE.MathUtils.smoothstep(y, 0.2, 0.28);
+        const roof = THREE.MathUtils.smoothstep(y, 0.98, 1.1);
+        y += (0.075 * bonnet + 0.035 * roof) * Math.max(0, 1 - (z / 0.9) ** 2);
+        z *= 1 - 0.035 * (1 - THREE.MathUtils.smoothstep(y, -0.48, 0.43));
+      }
+      positions.setXYZ(i, x, y, z);
+    }
+    if (object.material === paint) {
+      // Extrusions duplicate edge vertices; weld them so bevel normals can blend across faces.
+      geometry.deleteAttribute('normal');
+      geometry.deleteAttribute('uv');
+      object.geometry = mergeVertices(geometry);
+      geometry.dispose();
+    }
+    object.geometry.computeVertexNormals();
+  });
 
   return body;
 }
