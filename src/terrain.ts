@@ -3,6 +3,7 @@ import { createNoise2D } from 'simplex-noise';
 const RIVER = {
   frequency: 0.0006, warpFrequency: 0.0008, warp: 0.35, distanceScale: 400, // channels ~1.5 km apart; width ∝ 1/(frequency·distanceScale)
   halfWidth: 10, bankWidth: 48,
+  starBank: 5, // banks this many times wider through star dunes, so mega-dunes slope down to the channel instead of cliffs
 };
 
 // mulberry32 seeded from an FNV-1a hash of the seed string
@@ -26,11 +27,11 @@ function createRiverbed(seed: string) {
   const random = prng(`${seed}:rivers`);
   const noise = createNoise2D(random);
   const warp = createNoise2D(random);
-  return (x: number, z: number) => {
+  return (x: number, z: number, bankWidth = RIVER.bankWidth) => {
     const wx = warp(x * RIVER.warpFrequency + 123.4, z * RIVER.warpFrequency) * RIVER.warp;
     const wz = warp(x * RIVER.warpFrequency, z * RIVER.warpFrequency + 456.7) * RIVER.warp;
     const d = Math.abs(noise(x * RIVER.frequency + wx + 123.4, z * RIVER.frequency + wz + 456.7)) * RIVER.distanceScale;
-    return 1 - smooth((d - RIVER.halfWidth) / RIVER.bankWidth);
+    return 1 - smooth((d - RIVER.halfWidth) / bankWidth);
   };
 }
 
@@ -71,7 +72,10 @@ const CREST = { transverse: 0.013, star: 0.006 };
 
 // Terrain height in metres at world (x, z); a pure function of the seed.
 export function createHeight(seed: string) {
-  const dunes = { rollingAmplitude: 6, ridgeAmplitude: 18, starAmplitude: 32, starFrequency: 0.004 };
+  const dunes = {
+    rollingAmplitude: 6, ridgeAmplitude: 18, starAmplitude: 32, starFrequency: 0.004,
+    megaAmplitude: 175, megaFrequency: 0.00072, // Erg Chebbi-size star dunes (~150 m with the rest); same slope ratio as the small ones
+  };
   const random = prng(seed);
   const swell = createNoise2D(random);
   const ridge = createNoise2D(random);
@@ -88,15 +92,17 @@ export function createHeight(seed: string) {
     const r = 1 - Math.sqrt(n * n + CREST.transverse);
     return r * r * dunes.ridgeAmplitude;
   };
-  const star = (x: number, z: number) => {
-    x *= dunes.starFrequency;
-    z *= dunes.starFrequency;
-    // Intersect three ridge directions to make peaks with radial arms.
+  // Star dune shape, 0..1, at unit frequency. Intersect three ridge directions to make peaks with radial arms.
+  const starShape = (x: number, z: number) => {
     const a = 1 - Math.sqrt(ridge(x, z * 0.3) ** 2 + CREST.star);
     const b = 1 - Math.sqrt(ridge(x * 0.5 + z * 0.866, (z * 0.5 - x * 0.866) * 0.3) ** 2 + CREST.star);
     const c = 1 - Math.sqrt(ridge(x * 0.5 - z * 0.866, (z * 0.5 + x * 0.866) * 0.3) ** 2 + CREST.star);
-    return a * b * c * dunes.starAmplitude;
+    return a * b * c;
   };
+  // Small star dunes ride on the flanks of mega-dunes; the offset decorrelates the two scales.
+  const star = (x: number, z: number) =>
+    starShape(x * dunes.megaFrequency + 500, z * dunes.megaFrequency + 500) * dunes.megaAmplitude +
+    starShape(x * dunes.starFrequency, z * dunes.starFrequency) * dunes.starAmplitude;
 
   return (wx: number, wz: number) => {
     const x = wx + ox;
@@ -105,7 +111,7 @@ export function createHeight(seed: string) {
     const [r, t, s] = weights(wx, wz);
     const dunes = base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
     const floor = base - 1; // follow the broad terrain so banks stay shallow
-    return dunes + (floor - dunes) * bed(wx, wz);
+    return dunes + (floor - dunes) * bed(wx, wz, RIVER.bankWidth * (1 + RIVER.starBank * s));
   };
 }
 
