@@ -275,6 +275,5 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     range = range === 'high' ? 'low' : 'high';
   }
 
-  // gear/rpm are unused until the audio ticket (#13) lands
   return { body, vehicle, mesh, update, render, flip, reset, toggleRange, headlights, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
 }
