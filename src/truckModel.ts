@@ -66,8 +66,28 @@ export function createTruckModel(): THREE.Group {
     add(geometry, material);
   }
 
+  const lofted = new Set<THREE.Mesh>();
+  // Connect matching profiles; open ends meet the adjacent body panels.
+  function loft(profiles: number[][][], material = paint) {
+    const width = profiles[0].length;
+    const indices = [];
+    for (let row = 0; row < profiles.length - 1; row++) {
+      for (let col = 0; col < width - 1; col++) {
+        const a = row * width + col;
+        indices.push(a, a + 1, a + width, a + 1, a + width + 1, a + width);
+      }
+    }
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(profiles.flat(2), 3));
+    geometry.setIndex(indices);
+    geometry.computeVertexNormals();
+    const mesh = add(geometry, material);
+    lofted.add(mesh);
+    return mesh;
+  }
+
   // The silhouette has real openings, so suspension and steering never expose a solid box behind the tyres.
-  const sill = [[-2.15, MODEL.archY]];
+  const sill = [[-2.0, MODEL.archY]];
   for (const axle of [-MODEL.axleX, MODEL.axleX]) {
     for (let i = 0; i <= 12; i++) {
       const angle = Math.PI * (1 - i / 12);
@@ -75,7 +95,33 @@ export function createTruckModel(): THREE.Group {
     }
   }
   sill.push([2.16, MODEL.archY]);
-  extrude([...sill, [2.16, 0.26], [0.88, 0.43], [-2.15, 0.43]], MODEL.halfWidth * 2 - 0.02, paint, -MODEL.halfWidth + 0.01, 0.035, 4);
+  extrude([...sill, [2.16, -0.085], [1.9, -0.085], [1.9, 0.12], [0.82, 0.12], [0.78, 0.43], [-2.0, 0.43]], MODEL.halfWidth * 2 - 0.02, paint, -MODEL.halfWidth + 0.01, 0.025);
+
+  // x, centre height, wing height, half-width: the last sections roll down into the grille.
+  const nose = [
+    [0.78, 0.49, 0.43, 0.85],
+    [1.05, 0.50, 0.415, 0.87],
+    [1.45, 0.48, 0.395, 0.88],
+    [1.82, 0.445, 0.36, 0.88],
+    [2.02, 0.405, 0.32, 0.845],
+    [2.15, 0.35, 0.28, 0.765],
+    [2.235, 0.255, 0.23, 0.64],
+  ];
+  const noseProfiles = nose.map(([x, crown, wing, width]) => [
+    [x, x > 1.7 ? -0.085 : 0.10, -width], [x, wing - 0.10, -width], [x, wing, -width * 0.94],
+    [x, crown - 0.025, -width * 0.68], [x, crown - 0.005, -width * 0.35], [x, crown, 0],
+    [x, crown - 0.005, width * 0.35], [x, crown - 0.025, width * 0.68],
+    [x, wing, width * 0.94], [x, wing - 0.10, width], [x, x > 1.7 ? -0.085 : 0.10, width],
+  ]);
+  loft(noseProfiles);
+  const frontLip = noseProfiles[noseProfiles.length - 1].slice(2, -2);
+  loft([frontLip, frontLip.map(([x, , z]) => [x, 0.20, z])]);
+  for (const side of [-1, 1]) {
+    loft(nose.slice(0, -1).map(([x, crown, wing, width]) => {
+      const y = THREE.MathUtils.lerp(crown - 0.025, wing, (0.85 - 0.68) / (0.94 - 0.68)) + 0.003;
+      return [[x, y, side * width * 0.85 - 0.002], [x, y, side * width * 0.85 + 0.002]];
+    }), trim);
+  }
 
   const cabin = extrude([
     [-2.105, 0.42], [0.86, 0.42], [0.28, 1.06], [0.16, 1.1], [-1.905, 1.1], [-2.015, 1.03],
@@ -91,7 +137,7 @@ export function createTruckModel(): THREE.Group {
   function flare(axle: number, side: number) {
     const positions = [];
     const indices = [];
-    const rings = [[MODEL.archRadius, 0.9], [0.59, 1.0], [0.69, 0.94], [0.72, MODEL.halfWidth]];
+    const rings = [[MODEL.archRadius, 0.92], [0.565, 0.94], [0.63, 0.92], [0.69, MODEL.halfWidth]];
     for (const [radius, width] of rings) {
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
@@ -117,7 +163,7 @@ export function createTruckModel(): THREE.Group {
       flare(axle, side);
       const edging = new THREE.RingGeometry(MODEL.archRadius, MODEL.archRadius + 0.025, 12, 1, 0, Math.PI);
       if (side < 0) edging.rotateY(Math.PI);
-      add(edging, trim, axle, MODEL.archY, side * 0.947);
+      add(edging, trim, axle, MODEL.archY, side * 0.932);
       const well = [];
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
@@ -132,7 +178,7 @@ export function createTruckModel(): THREE.Group {
     };
     sideWindow([[-0.22, 0.49], [0.76, 0.49], [0.27, 1.01], [-0.22, 1.01]]);
     sideWindow([[-1.06, 0.49], [-0.32, 0.49], [-0.32, 1.02], [-1.06, 1.02]], tint);
-    sideWindow([[-1.94, 0.59], [-1.82, 0.49], [-1.15, 0.49], [-1.15, 1.02], [-1.96, 1.02], [-2.02, 0.94]], tint);
+    sideWindow([[-1.89, 0.60], [-1.76, 0.51], [-1.15, 0.49], [-1.15, 1.02], [-1.79, 1.02], [-1.9, 0.97], [-1.94, 0.81]], tint);
 
     for (const [left, right] of [[-1.15, -1.06], [-0.32, -0.22]]) {
       sideWindow([[left, 0.49], [right, 0.49], [right, 1.02], [left, 1.02]], trim);
@@ -163,39 +209,76 @@ export function createTruckModel(): THREE.Group {
     panel([[-2.148, 0.49, left * 0.76], [-2.148, 0.49, right * 0.76], [-2.072, 1.0, right * 0.7], [-2.072, 1.0, left * 0.7]], tint);
   }
 
-  extrude([[1.98, -0.44], [2.2, -0.4], [2.24, -0.29], [2.22, -0.1], [1.98, -0.1]], 1.7, paint, -0.85, 0.065, 4);
-  box(0.015, 0.13, 0.87, 2.313, -0.275, 0);
-  box(0.018, 0.025, 0.84, 2.327, -0.275, 0, paint);
+  // Bumper sections follow the same rounded plan as the nose, returning into the wings.
+  loft([
+    [-0.92, 2.00], [-0.89, 2.13], [-0.8, 2.25], [-0.6, 2.30], [0, 2.315],
+    [0.6, 2.30], [0.8, 2.25], [0.89, 2.13], [0.92, 2.00],
+  ].map(([z, front]) => [
+    [1.96, -0.44, z], [front - 0.055, -0.44, z], [front, -0.37, z],
+    [front + 0.005, -0.16, z], [front - 0.02, -0.09, z], [1.96, -0.09, z], [1.96, -0.44, z],
+  ]));
+  box(0.015, 0.13, 0.87, 2.345, -0.275, 0);
+  box(0.018, 0.025, 0.84, 2.36, -0.275, 0, paint);
   box(0.035, 0.29, 0.98, 2.207, 0.085, 0, rim); // blank grille
-  for (let i = -5; i <= 5; i++) box(0.035, 0.245, 0.027, 2.234, 0.085, i * 0.081, trim);
+  for (let i = -5; i <= 5; i++) box(0.035, 0.215, 0.027, 2.234, 0.077, i * 0.081, trim);
   for (const side of [-1, 1]) {
-    box(0.045, 0.32, 0.42, 2.19, 0.095, side * 0.69);
-    const headlamp = extrude([
-      [-0.19, -0.095], [-0.145, -0.14], [0.145, -0.14], [0.19, -0.085], [0.19, 0.1], [0.155, 0.13], [-0.155, 0.13], [-0.19, 0.1],
-    ], 0.018, lens, 0, 0.012);
-    headlamp.rotation.y = Math.PI / 2;
-    headlamp.position.set(2.217, 0.095, side * 0.69);
-    box(0.22, 0.27, 0.055, 2.06, 0.095, side * 0.859, lens);
-    box(0.022, 0.16, 0.29, 2.312, -0.265, side * 0.64, rim);
-    box(0.028, 0.12, 0.245, 2.33, -0.265, side * 0.64, lens);
+    // The lamp follows the wing in plan view, with a narrow dark surround.
+    const lamp = [
+      [2.248, 0.48, -0.064, 0.238], [2.23, 0.64, -0.064, 0.244],
+      [2.17, 0.76, -0.047, 0.26], [2.06, 0.845, 0.0, 0.27], [1.94, 0.868, 0.055, 0.25],
+    ];
+    for (const [inset, material] of [[0, trim], [0.008, lens]] as const) {
+      loft([0, 0.5, 1].map((row) => {
+        const profile = lamp.map(([x, z, bottom, top], col) => {
+          // Shrink along the surface, then lift outwards on both axes around the corner.
+          if (col === 0) z += inset;
+          if (col === lamp.length - 1) x += inset;
+          return [x + inset / 2, THREE.MathUtils.lerp(bottom + inset, top - inset, row), side * (z + inset / 2)];
+        });
+        return side > 0 ? profile.reverse() : profile;
+      }), material);
+    }
+    for (const [inset, material] of [[0, rim], [0.015, lens]] as const) {
+      loft([-0.345 + inset, -0.185 - inset].map((y) => {
+        const profile = [[2.325 + inset / 2, y, side * (0.50 + inset)], [2.29 + inset / 2, y, side * (0.76 - inset)]];
+        return side > 0 ? profile.reverse() : profile;
+      }), material);
+    }
     box(0.13, 0.08, 0.055, 2.26, -0.075, side * 0.35);
     add(new THREE.CylinderGeometry(0.135, 0.135, 0.075, 12).rotateZ(Math.PI / 2), rim, 2.31, 0.045, side * 0.35);
     add(new THREE.CylinderGeometry(0.113, 0.113, 0.012, 12).rotateZ(Math.PI / 2), lens, 2.354, 0.045, side * 0.35);
-    box(0.085, 0.45, 0.18, -2.17, 0.18, side * 0.758);
-    box(0.09, 0.23, 0.15, -2.18, 0.07, side * 0.758, rearLens);
-    box(0.09, 0.17, 0.15, -2.18, 0.29, side * 0.758, lens);
+    // A narrow divider separates the main reflector from the corner lens.
+    loft([-0.042, 0.257].map((y) => {
+      const profile = [[2.18, y, side * 0.765], [2.172, y, side * 0.773]];
+      return side > 0 ? profile.reverse() : profile;
+    }), paint);
   }
 
+  const rearProfile = [
+    [-1.97, -0.85], [-2.08, -0.83], [-2.16, -0.77], [-2.205, -0.67],
+    [-2.22, 0], [-2.205, 0.67], [-2.16, 0.77], [-2.08, 0.83], [-1.97, 0.85],
+  ];
+  loft([-0.43, 0.05, 0.43].map((y) => rearProfile.map(([x, z]) => [x, y, z])));
+  for (const side of [-1, 1]) {
+    for (const [bottom, top, material] of [[-0.08, 0.45, trim], [-0.065, 0.23, rearLens], [0.25, 0.435, lens]] as const) {
+      loft([bottom, top].map((y) => {
+        const offset = material === trim ? 0 : 0.003;
+        const profile = [[-2.216, 0.69], [-2.172, 0.77], [-2.092, 0.83]]
+          .map(([x, z]) => [x - offset, y, side * (z + offset)]);
+        return side > 0 ? profile : profile.reverse();
+      }), material);
+    }
+  }
   extrude([[-2.27, -0.4], [-2.2, -0.48], [-2.03, -0.48], [-2.03, -0.27], [-2.27, -0.27]], 1.7, paint, -0.85, 0.065, 4);
-  box(0.035, 0.62, 1.27, -2.173, 0.07, 0, trim);
-  box(0.045, 0.59, 1.24, -2.196, 0.07, 0, paint); // inset outline of the single side-hinged door
-  box(0.065, 0.065, 0.19, -2.23, 0.21, -0.45, trim);
-  for (const y of [-0.15, 0.32]) box(0.07, 0.065, 0.12, -2.23, y, 0.62, rim);
+  box(0.035, 0.62, 1.27, -2.22, 0.07, 0, trim);
+  box(0.045, 0.59, 1.24, -2.24, 0.07, 0, paint); // inset outline of the single side-hinged door
+  box(0.065, 0.065, 0.19, -2.27, 0.21, -0.45, trim);
+  for (const y of [-0.15, 0.32]) box(0.07, 0.065, 0.12, -2.27, y, 0.62, rim);
 
   // The scoop follows the bonnet slope; its forward mouth stays open and dark.
-  extrude([[1.12, 0.41], [1.57, 0.349], [1.57, 0.44], [1.24, 0.46]], 0.42, paint, -0.21, 0.012);
-  box(0.015, 0.045, 0.33, 1.59, 0.413, 0);
-  for (const z of [-0.055, 0.055]) box(0.02, 0.045, 0.012, 1.6, 0.413, z, rim);
+  extrude([[1.03, 0.49], [1.48, 0.48], [1.48, 0.57], [1.15, 0.57]], 0.42, paint, -0.21, 0.012);
+  box(0.015, 0.045, 0.33, 1.495, 0.54, 0);
+  for (const z of [-0.055, 0.055]) box(0.02, 0.045, 0.012, 1.505, 0.54, z, rim);
 
   // Right-side intake runs along the A-pillar, with the mouth facing +x.
   pipe([1.16, 0.3, 0.92], [0.89, 0.46, 0.94], 0.075);
@@ -228,14 +311,14 @@ export function createTruckModel(): THREE.Group {
       let x = positions.getX(i);
       let y = positions.getY(i);
       let z = positions.getZ(i);
-      if (!isSpare) { // spare stays round and separate from the tailgate corners
+      if (!isSpare && !lofted.has(object)) { // lofts already have their rounded profiles
         const end = THREE.MathUtils.smoothstep(Math.abs(x), 1.75, 2.3);
         x -= Math.sign(x) * 0.2 * end * (Math.abs(z) / 0.94) ** 4;
-        const bonnet = THREE.MathUtils.smoothstep(x, 0.82, 1.02) * THREE.MathUtils.smoothstep(y, 0.2, 0.28);
         const roof = THREE.MathUtils.smoothstep(y, 0.98, 1.1);
-        y += (0.075 * bonnet + 0.035 * roof) * Math.max(0, 1 - (z / 0.9) ** 2);
+        y += 0.035 * roof * Math.max(0, 1 - (z / 0.9) ** 2);
         z *= 1 - 0.035 * (1 - THREE.MathUtils.smoothstep(y, -0.48, 0.43));
       }
+      if (!isSpare && y > 0.43) y = 0.43 + (y - 0.43) * 0.85;
       positions.setXYZ(i, x, y, z);
     }
     if (object.material === paint) {
