@@ -85,11 +85,14 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   const mesh = new THREE.Group();
   mesh.add(createTruckModel());
   const tyre = new THREE.MeshLambertMaterial({ color: 0x252724 });
-  const rim = new THREE.MeshLambertMaterial({ color: 0x141918 });
+  const rim = new THREE.MeshLambertMaterial({ color: 0x2c363b });
   const pinstripe = new THREE.MeshLambertMaterial({ color: 0xe2c658 });
   const wheelGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.95, T.wheelRadius * 0.95, 0.34, 16).rotateX(Math.PI / 2);
   const rimGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.55, T.wheelRadius * 0.55, 0.35, 16).rotateX(Math.PI / 2);
   const stripeGeo = new THREE.RingGeometry(T.wheelRadius * 0.53, T.wheelRadius * 0.55, 24);
+  const ventGeo = new THREE.ShapeGeometry(new THREE.Shape(Array.from({ length: 6 }, (_, i) =>
+    new THREE.Vector2(T.wheelRadius * 0.08 * Math.cos(i * Math.PI / 3), T.wheelRadius * 0.11 * Math.sin(i * Math.PI / 3)),
+  )));
   // Leave room for the tread corners within the physics radius.
   const treadGeo = new THREE.BoxGeometry(T.wheelRadius * 0.27, T.wheelRadius * 0.085, 0.175);
   const hubGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.16, T.wheelRadius * 0.16, 0.375, 8).rotateX(Math.PI / 2);
@@ -101,6 +104,13 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     stripe.rotation.y = z > 0 ? 0 : Math.PI;
     w.add(stripe);
     w.add(new THREE.Mesh(hubGeo, tyre));
+    for (let i = 0; i < 6; i++) {
+      const angle = i * Math.PI / 3;
+      const vent = new THREE.Mesh(ventGeo, tyre);
+      vent.position.set(Math.cos(angle) * T.wheelRadius * 0.37, Math.sin(angle) * T.wheelRadius * 0.37, Math.sign(z) * 0.181);
+      vent.rotation.set(0, z > 0 ? 0 : Math.PI, Math.sign(z) * (angle - Math.PI / 2));
+      w.add(vent);
+    }
     for (const row of [-1, 1]) {
       for (let i = 0; i < 10; i++) {
         const angle = (i + (row > 0 ? 0.5 : 0)) * Math.PI / 5;
