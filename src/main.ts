@@ -6,6 +6,7 @@ import { createHud } from './hud';
 import { readInput } from './input';
 import { createScene } from './scene';
 import { createGroundColor, createHeight, createSurface, findFlatSpot, seedFromUrl } from './terrain';
+import { createTouchControls } from './touch';
 import { createTracks } from './tracks';
 import { createTruck } from './truck';
 
@@ -26,6 +27,7 @@ chunks.update(new THREE.Vector3(), Infinity);
 const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0), surface);
 const tracks = createTracks(scene, truck);
 const hud = createHud();
+createTouchControls();
 const fwd = new THREE.Vector3();
 camera.position.set(-10, height(-10, 0) + 4, 0);
 
