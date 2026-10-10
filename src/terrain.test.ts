@@ -9,76 +9,7 @@ const samples = [
   [5000, 5000],
 ];
 
-describe('createSurface', () => {
-  test('surface is reproducible per seed and changes with the seed', () => {
-    const a = createSurface('dune');
-    const b = createSurface('dune');
-    const c = createSurface('erg');
-    let differences = 0;
-    for (let x = -800; x <= 800; x += 20) {
-      for (let z = -800; z <= 800; z += 20) {
-        expect(a(x, z)).toBe(b(x, z));
-        if (a(x, z) !== c(x, z)) differences++;
-      }
-    }
-    expect(differences).toBeGreaterThan(0);
-  });
-
-  test('seeded riverbeds cross every region and leave ordinary sand between them', () => {
-    const surface = createSurface('dune');
-    const weights = regionWeights('dune');
-    const regions = [false, false, false];
-    let sand = 0;
-    for (let x = -2000; x <= 2000; x += 20) {
-      for (let z = -2000; z <= 2000; z += 20) {
-        if (surface(x, z) === 'sand') sand++;
-        else weights(x, z).forEach((w, i) => { if (w > 0.9) regions[i] = true; });
-      }
-    }
-    expect(regions).toEqual([true, true, true]);
-    expect(sand).toBeGreaterThan(30000);
-  });
-});
-
 describe('createHeight', () => {
-  test('most banks outside star regions are drivable', () => {
-    for (const seed of ['dune', 'abc', 's155']) {
-      const height = createHeight(seed);
-      const surface = createSurface(seed);
-      const weights = regionWeights(seed);
-      const slopes: number[] = [];
-      for (let x = -1200; x <= 1200; x += 20) {
-        for (let z = -1200; z <= 1200; z += 20) {
-          if (weights(x, z)[2] > 0.1) continue;
-          const neighbours = [[x - 4, z], [x + 4, z], [x, z - 4], [x, z + 4]];
-          if (neighbours.every(([nx, nz]) => surface(nx, nz) === surface(x, z))) continue;
-          slopes.push(Math.hypot(height(x + 1, z) - height(x - 1, z), height(x, z + 1) - height(x, z - 1)) / 2);
-        }
-      }
-      slopes.sort((a, b) => a - b);
-      expect(slopes.length).toBeGreaterThan(100);
-      expect(slopes[Math.floor(slopes.length * 0.9)]).toBeLessThan(0.8);
-    }
-  });
-
-  test('riverbed interiors are mostly flat', () => {
-    const height = createHeight('dune');
-    const surface = createSurface('dune');
-    let interior = 0;
-    let flat = 0;
-    for (let x = -1200; x <= 1200; x += 20) {
-      for (let z = -1200; z <= 1200; z += 20) {
-        const points = [[x, z], [x - 4, z], [x + 4, z], [x, z - 4], [x, z + 4]];
-        if (!points.every(([px, pz]) => surface(px, pz) === 'soft')) continue;
-        const slope = Math.hypot(height(x + 1, z) - height(x - 1, z), height(x, z + 1) - height(x, z - 1)) / 2;
-        if (slope < 0.15) flat++;
-        interior++;
-      }
-    }
-    expect(interior).toBeGreaterThan(100);
-    expect(flat / interior).toBeGreaterThan(0.8);
-  });
-
   test('star regions have challenging slip faces at the 2 m grid spacing', () => {
     const height = createHeight('dune');
     const weights = regionWeights('dune');
@@ -151,9 +82,7 @@ describe('findFlatSpot', () => {
     const h = createHeight('dune');
     const surface = createSurface('dune');
     const slope = (x: number, z: number) => Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
-    let riverbed = [0, 0];
-    for (let x = 0; surface(riverbed[0], 0) !== 'soft'; x += 5) riverbed = [x, 0];
-    for (const [x, z] of [...samples, riverbed]) {
+    for (const [x, z] of samples) {
       const p = findFlatSpot(h, surface, x, z, 30);
       expect(Math.hypot(p.x - x, p.z - z)).toBeLessThanOrEqual(30);
       expect(surface(p.x, p.z)).toBe('sand');
@@ -163,18 +92,7 @@ describe('findFlatSpot', () => {
 });
 
 describe('createGroundColor', () => {
-  test('is deterministic and riverbeds differ from the sand around them', () => {
-    const a = createGroundColor('dune');
-    const surface = createSurface('dune');
-    expect(a(10, 20)).toEqual(createGroundColor('dune')(10, 20));
-    let soft: number[] | undefined;
-    let sand: number[] | undefined;
-    for (let x = -800; x <= 800 && !(soft && sand); x += 10) {
-      for (let z = -800; z <= 800; z += 10) {
-        if (surface(x, z) === 'soft') soft ??= a(x, z);
-        else sand ??= a(x, z);
-      }
-    }
-    expect(soft).not.toEqual(sand);
+  test('is deterministic', () => {
+    expect(createGroundColor('dune')(10, 20)).toEqual(createGroundColor('dune')(10, 20));
   });
 });

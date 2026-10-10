@@ -24,12 +24,13 @@ const surface = createSurface(seed);
 const chunks = createChunks(world, scene, height, createGroundColor(seed));
 chunks.update(new THREE.Vector3(), Infinity);
 
-const truck = createTruck(world, scene, new THREE.Vector3(0, height(0, 0) + 1.5, 0), surface);
+const spawn = findFlatSpot(height, surface, 0, 0, 150, 10); // the origin can sit on a mega-dune's face
+const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), surface);
 const tracks = createTracks(scene, truck);
 const hud = createHud();
 createTouchControls();
 const fwd = new THREE.Vector3();
-camera.position.set(-10, height(-10, 0) + 4, 0);
+camera.position.set(spawn.x - 10, height(spawn.x - 10, spawn.z) + 4, spawn.z);
 let hood = false;
 const toggleView = () => setHoodView(camera, (hood = !hood));
 

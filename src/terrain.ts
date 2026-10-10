@@ -1,11 +1,5 @@
 import { createNoise2D } from 'simplex-noise';
 
-const RIVER = {
-  frequency: 0.0006, warpFrequency: 0.0008, warp: 0.35, distanceScale: 400, // channels ~1.5 km apart; width ∝ 1/(frequency·distanceScale)
-  halfWidth: 10, bankWidth: 48,
-  starBank: 5, // banks this many times wider through star dunes, so mega-dunes slope down to the channel instead of cliffs
-};
-
 // mulberry32 seeded from an FNV-1a hash of the seed string
 function prng(seed: string) {
   let a = 2166136261;
@@ -23,18 +17,6 @@ const smooth = (t: number) => {
   return t * t * (3 - 2 * t);
 };
 
-function createRiverbed(seed: string) {
-  const random = prng(`${seed}:rivers`);
-  const noise = createNoise2D(random);
-  const warp = createNoise2D(random);
-  return (x: number, z: number, bankWidth = RIVER.bankWidth) => {
-    const wx = warp(x * RIVER.warpFrequency + 123.4, z * RIVER.warpFrequency) * RIVER.warp;
-    const wz = warp(x * RIVER.warpFrequency, z * RIVER.warpFrequency + 456.7) * RIVER.warp;
-    const d = Math.abs(noise(x * RIVER.frequency + wx + 123.4, z * RIVER.frequency + wz + 456.7)) * RIVER.distanceScale;
-    return 1 - smooth((d - RIVER.halfWidth) / bankWidth);
-  };
-}
-
 // Weights in rolling, transverse, star order; also used for ground colours.
 export function regionWeights(seed: string) {
   const noise = createNoise2D(prng(`${seed}:regions`));
@@ -47,23 +29,15 @@ export function regionWeights(seed: string) {
   };
 }
 
-// Per-region sand tones (sRGB 0-1) and the paler silt of riverbeds.
-const GROUND = {
-  palettes: [[0.93, 0.72, 0.47], [0.92, 0.6, 0.33], [0.9, 0.5, 0.25]],
-  riverbed: [0.86, 0.77, 0.62],
-};
+// Per-region sand tones (sRGB 0-1).
+const GROUND = [[0.93, 0.72, 0.47], [0.92, 0.6, 0.33], [0.9, 0.5, 0.25]];
 
-// Ground colour at world (x, z): region palettes blended by weight, then mixed toward riverbed silt.
+// Ground colour at world (x, z): region palettes blended by weight.
 export function createGroundColor(seed: string) {
   const weights = regionWeights(seed);
-  const bed = createRiverbed(seed);
   return (x: number, z: number): [number, number, number] => {
     const w = weights(x, z);
-    const b = bed(x, z);
-    return [0, 1, 2].map((c) => {
-      const sand = w[0] * GROUND.palettes[0][c] + w[1] * GROUND.palettes[1][c] + w[2] * GROUND.palettes[2][c];
-      return sand + (GROUND.riverbed[c] - sand) * b;
-    }) as [number, number, number];
+    return [0, 1, 2].map((c) => w[0] * GROUND[0][c] + w[1] * GROUND[1][c] + w[2] * GROUND[2][c]) as [number, number, number];
   };
 }
 
@@ -83,7 +57,6 @@ export function createHeight(seed: string) {
   const ox = random() * 1e4; // simplex is 0 at the origin for every seed, so shift each desert
   const oz = random() * 1e4;
   const weights = regionWeights(seed);
-  const bed = createRiverbed(seed);
   const rolling = (x: number, z: number) => swell(x * 0.0033, z * 0.0033) * dunes.rollingAmplitude;
   const transverse = (x: number, z: number) => {
     // One wind along +x: stretch every crest along z, with only a light warp.
@@ -109,9 +82,7 @@ export function createHeight(seed: string) {
     const z = wz + oz;
     const base = swell(x * 0.0018, z * 0.0018) * 14; // broad rises and basins (dune bowls)
     const [r, t, s] = weights(wx, wz);
-    const dunes = base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
-    const floor = base - 1; // follow the broad terrain so banks stay shallow
-    return dunes + (floor - dunes) * bed(wx, wz, RIVER.bankWidth * (1 + RIVER.starBank * s));
+    return base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
   };
 }
 
@@ -131,7 +102,7 @@ const slopeAt = (h: (x: number, z: number) => number, x: number, z: number) =>
   Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
 
 // Flattest firm point on a grid within `radius` of (x, z); the start itself is a candidate.
-// Riverbeds are the flattest ground around, so soft sand is skipped or reset would drop you back in.
+// Soft sand is skipped so reset never drops you back in.
 export function findFlatSpot(h: (x: number, z: number) => number, surface: (x: number, z: number) => Surface, x: number, z: number, radius = 30, step = 5) {
   let best = { x, z };
   let bestSlope = surface(x, z) === 'soft' ? Infinity : slopeAt(h, x, z);
@@ -147,7 +118,7 @@ export function findFlatSpot(h: (x: number, z: number) => number, surface: (x: n
 
 export type Surface = 'sand' | 'soft';
 
-export function createSurface(seed: string) {
-  const bed = createRiverbed(seed);
-  return (x: number, z: number): Surface => bed(x, z) > 0.8 ? 'soft' : 'sand'; // floor and bank toe only; the banks themselves stay firm;
+// ponytail: riverbeds were the only soft sand and are gone; everything is firm until soft sand gets a new home.
+export function createSurface(_seed: string) {
+  return (_x: number, _z: number): Surface => 'sand';
 }
