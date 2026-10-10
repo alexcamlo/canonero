@@ -10,9 +10,6 @@ const MODEL = {
   tint: 0x17252b,
   lens: 0xc4d9e8,
   rearLens: 0x983c2b,
-  lining: 0xf0e8d6,
-  dash: 0x4b4840,
-  steerRatio: 3, // wheel turn per road-wheel turn
   halfWidth: 0.85,
   axleX: 1.4,
   archY: -0.445,
@@ -20,9 +17,8 @@ const MODEL = {
 };
 
 // Body only, in chassis-local coordinates: +x forward, +y up, +z right.
-export function createTruckModel(): THREE.Group & { setInterior(on: boolean, steer?: number): void } {
+export function createTruckModel(): THREE.Group {
   const body = new THREE.Group();
-  let target: THREE.Object3D = body; // where add() puts meshes; the cockpit swaps it below
   const paint = new THREE.MeshLambertMaterial({ color: MODEL.paint });
   const trim = new THREE.MeshLambertMaterial({ color: MODEL.trim });
   const glass = new THREE.MeshLambertMaterial({ color: MODEL.glass, side: THREE.DoubleSide });
@@ -37,7 +33,7 @@ export function createTruckModel(): THREE.Group & { setInterior(on: boolean, ste
     const mesh = new THREE.Mesh(geometry, material);
     mesh.position.set(x, y, z);
     mesh.castShadow = true;
-    target.add(mesh);
+    body.add(mesh);
     return mesh;
   }
 
@@ -360,38 +356,5 @@ export function createTruckModel(): THREE.Group & { setInterior(on: boolean, ste
     object.geometry.computeVertexNormals();
   });
 
-  // Cockpit, in final (post-bend) coordinates, driver on the left (-z). Shown instead of the cabin shell and glass,
-  // which would hide the view from inside (and the solid cabin shell has no window openings).
-  const interior = new THREE.Group();
-  interior.visible = false;
-  body.add(interior);
-  target = interior;
-  const lining = new THREE.MeshLambertMaterial({ color: MODEL.lining });
-  const dash = new THREE.MeshLambertMaterial({ color: MODEL.dash });
-  const driverZ = -0.34;
-  extrude([[0.34, 0.43], [0.88, 0.43], [0.88, 0.47], [0.70, 0.58], [0.5, 0.60], [0.34, 0.56]], 1.56, dash, -0.78); // dashboard, nose on the windscreen plane
-  box(1.5, 0.03, 1.44, -0.4, 0.98, 0, lining); // headliner
-  for (const side of [-1, 1]) {
-    pipe([0.88, 0.47, side * 0.72], [0.31, 0.96, side * 0.67], 0.032); // A-pillar
-    box(1.3, 0.14, 0.06, 0.2, 0.5, side * 0.77, lining); // door card
-  }
-  const wheel = new THREE.Group(); // spins about x, laid back like a column
-  wheel.position.set(0.55, 0.77, driverZ);
-  wheel.rotation.order = 'ZYX';
-  wheel.rotation.z = -0.45;
-  wheel.add(
-    add(new THREE.TorusGeometry(0.13, 0.015, 6, 16).rotateY(Math.PI / 2), trim),
-    box(0.012, 0.022, 0.26, 0, 0, 0),
-    box(0.012, 0.13, 0.022, 0, -0.065, 0),
-  );
-  interior.add(wheel);
-
-  const cabinOnly = [cabin, glass, tint];
-  return Object.assign(body, {
-    setInterior(on: boolean, steer = 0) {
-      interior.visible = on;
-      for (const part of cabinOnly) part.visible = !on;
-      wheel.rotation.x = -steer * MODEL.steerRatio; // positive steer = left: counter-clockwise as the driver sees it
-    },
-  });
+  return body;
 }

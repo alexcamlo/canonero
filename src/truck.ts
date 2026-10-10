@@ -85,8 +85,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
 
   // Body and physics-driven wheels share the interpolated chassis pose.
   const mesh = new THREE.Group();
-  const model = createTruckModel();
-  mesh.add(model);
+  mesh.add(createTruckModel());
   const tyre = new THREE.MeshLambertMaterial({ color: 0x252724 });
   const rim = new THREE.MeshLambertMaterial({ color: 0x2c363b });
   const pinstripe = new THREE.MeshLambertMaterial({ color: 0xe2c658 });
@@ -271,5 +270,5 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   }
 
   // gear/rpm are unused until the audio ticket (#13) lands
-  return { body, vehicle, mesh, model, update, render, flip, reset, toggleRange, headlights, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
+  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, headlights, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
 }

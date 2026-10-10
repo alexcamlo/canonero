@@ -41,7 +41,7 @@ export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof create
       varying float vBorn;
       void main() {
         float alpha = clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
-        gl_FragColor = vec4(vec3(0.86, 0.91, 1.0) * alpha, alpha); // a darker shade of the sand, not brown-black (a multiplier, so no colour-space conversion)
+        gl_FragColor = vec4(mix(vec3(1.0), vec3(0.85, 0.86, 0.9), alpha), 1.0); // multiplier on the sand: fades to 1 (no change), never to 0 (black)
       }`,
   });
   const mesh = new THREE.Mesh(geometry, material);

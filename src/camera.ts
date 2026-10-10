@@ -5,11 +5,11 @@ const HEIGHT = 3.5;
 const FOLLOW = 4; // 1/s, position damping
 const LOOK = 10; // 1/s, aim damping
 
-const COCKPIT = {
-  eye: new THREE.Vector3(0.1, 0.84, -0.34), // driver's head in truck-local coordinates: left-hand drive, so -z
-  pitch: 0.07, // rad, looking slightly down over the bonnet
+const HOOD = {
+  eye: new THREE.Vector3(0.95, 0.85, 0), // truck-local: just ahead of the windscreen base, above the bonnet
+  pitch: 0.1, // rad, looking slightly down so the bonnet stays in view
   fov: 72,
-  near: 0.05, // the dashboard and headliner sit within ~0.1 m of the head
+  near: 0.05, // the bonnet is ~0.35 m below the eye
   turn: 14, // 1/s, rotation damping: bumps tilt the view instead of jolting it
 };
 
@@ -37,20 +37,20 @@ export function updateChaseCamera(
 }
 
 // Camera -z is truck +x, tilted down by the pitch.
-const look = new THREE.Quaternion().setFromEuler(new THREE.Euler(-COCKPIT.pitch, -Math.PI / 2, 0, 'YXZ'));
+const look = new THREE.Quaternion().setFromEuler(new THREE.Euler(-HOOD.pitch, -Math.PI / 2, 0, 'YXZ'));
 const goal = new THREE.Quaternion();
 const chase = { fov: 60, near: 0.1 };
 
 // Swap lens settings with the view; the chase values are whatever the camera was created with.
-export function setCockpit(camera: THREE.PerspectiveCamera, on: boolean) {
+export function setHoodView(camera: THREE.PerspectiveCamera, on: boolean) {
   if (on) Object.assign(chase, { fov: camera.fov, near: camera.near });
-  camera.fov = on ? COCKPIT.fov : chase.fov;
-  camera.near = on ? COCKPIT.near : chase.near;
+  camera.fov = on ? HOOD.fov : chase.fov;
+  camera.near = on ? HOOD.near : chase.near;
   camera.updateProjectionMatrix();
 }
 
-// Sit at the driver's head on the interpolated truck pose; rigid position, smoothed rotation (roll and pitch included).
-export function updateCockpitCamera(camera: THREE.Camera, target: THREE.Object3D, dt: number) {
-  camera.position.copy(COCKPIT.eye).applyQuaternion(target.quaternion).add(target.position);
-  camera.quaternion.slerp(goal.copy(target.quaternion).multiply(look), 1 - Math.exp(-COCKPIT.turn * dt));
+// Sit above the bonnet on the interpolated truck pose; rigid position, smoothed rotation (roll and pitch included).
+export function updateHoodCamera(camera: THREE.Camera, target: THREE.Object3D, dt: number) {
+  camera.position.copy(HOOD.eye).applyQuaternion(target.quaternion).add(target.position);
+  camera.quaternion.slerp(goal.copy(target.quaternion).multiply(look), 1 - Math.exp(-HOOD.turn * dt));
 }
