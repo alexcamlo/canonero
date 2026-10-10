@@ -1,3 +1,5 @@
+import { stick } from './touch';
+
 export type Input = { throttle: number; brake: number; steer: number; rangeToggle: boolean; airDown: boolean; compressor: boolean }; // steer: +1 = left
 
 const down = new Set<string>();
@@ -19,9 +21,9 @@ export function readInput(): Input {
   const rangeToggle = rangeHeldNow && !rangeHeld;
   rangeHeld = rangeHeldNow;
   return {
-    throttle: stronger(key('KeyW', 'ArrowUp'), pad?.buttons[7]?.value ?? 0), // RT
-    brake: stronger(key('KeyS', 'ArrowDown'), pad?.buttons[6]?.value ?? 0), // LT; brakes while rolling forward, reverses once stopped
-    steer: stronger(key('KeyA', 'ArrowLeft') - key('KeyD', 'ArrowRight'), -deadzone(pad?.axes[0] ?? 0)),
+    throttle: Math.max(key('KeyW', 'ArrowUp'), pad?.buttons[7]?.value ?? 0, deadzone(-stick.y)), // RT, drag up
+    brake: Math.max(key('KeyS', 'ArrowDown'), pad?.buttons[6]?.value ?? 0, deadzone(stick.y)), // LT, drag down; brakes while rolling forward, reverses once stopped
+    steer: stronger(stronger(key('KeyA', 'ArrowLeft') - key('KeyD', 'ArrowRight'), -deadzone(pad?.axes[0] ?? 0)), -deadzone(stick.x)),
     rangeToggle,
     airDown: key('KeyP') > 0 || !!pad?.buttons[13]?.pressed, // dpad down
     compressor: key('KeyO') > 0 || !!pad?.buttons[12]?.pressed, // dpad up
