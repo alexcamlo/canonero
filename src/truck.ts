@@ -4,6 +4,7 @@ import type { Input } from './input';
 import { GEARBOX, shift, type Range } from './gearbox';
 import { drag, stepSinkage, traction } from './sinkage';
 import type { Surface } from './terrain';
+import { createTruckModel } from './truckModel';
 
 // Truck faces +x (Rapier's default vehicle forward axis), y is up, +z is the right side.
 export const TRUCK = {
@@ -80,17 +81,24 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     vehicle.setWheelSideFrictionStiffness(i, T.sideFrictionStiffness);
   }
 
-  // Visuals: chassis group carries the body boxes and the wheels, so wheels inherit the interpolated pose.
+  // Body and physics-driven wheels share the interpolated chassis pose.
   const mesh = new THREE.Group();
-  const paint = new THREE.MeshLambertMaterial({ color: 0xe8e2d4 });
-  const lower = new THREE.Mesh(new THREE.BoxGeometry(hx * 2, hy * 2, hz * 2), paint);
-  const cabin = new THREE.Mesh(new THREE.BoxGeometry(hx * 1.3, 0.75, hz * 1.9), paint);
-  cabin.position.set(-hx * 0.3, hy + 0.37, 0); // boxy rear, short bonnet
-  mesh.add(lower, cabin);
+  mesh.add(createTruckModel());
   const tyre = new THREE.MeshLambertMaterial({ color: 0x2b2420 });
+  const rim = new THREE.MeshLambertMaterial({ color: 0xaaa89f });
   const wheelGeo = new THREE.CylinderGeometry(T.wheelRadius, T.wheelRadius, 0.3, 16).rotateX(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.55, T.wheelRadius * 0.55, 0.315, 16).rotateX(Math.PI / 2);
+  const slotGeo = new THREE.BoxGeometry(0.045, 0.075, 0.012);
   const wheels = wheelMounts.map(([x, z]) => {
     const w = new THREE.Mesh(wheelGeo, tyre);
+    w.add(new THREE.Mesh(rimGeo, rim));
+    for (let i = 0; i < 6; i++) {
+      const angle = i * Math.PI / 3;
+      const slot = new THREE.Mesh(slotGeo, tyre);
+      slot.position.set(Math.sin(angle) * T.wheelRadius * 0.36, Math.cos(angle) * T.wheelRadius * 0.36, Math.sign(z) * 0.162);
+      slot.rotation.z = -angle;
+      w.add(slot);
+    }
     w.position.set(x, T.wheelY, z);
     mesh.add(w);
     return w;
