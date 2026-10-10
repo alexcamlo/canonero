@@ -22,6 +22,8 @@ export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof create
 
   const material = new THREE.ShaderMaterial({
     transparent: true,
+    blending: THREE.MultiplyBlending, // darkens whatever light is on the sand, so tracks don't glow at night
+    premultipliedAlpha: true,
     depthWrite: false,
     side: THREE.DoubleSide,
     polygonOffset: true,
@@ -38,9 +40,8 @@ export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof create
       uniform float uTime;
       varying float vBorn;
       void main() {
-        float alpha = 0.35 * clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
-        gl_FragColor = vec4(0.2, 0.06, 0.015, alpha); // a darker shade of the sand, not brown-black
-        #include <colorspace_fragment>
+        float alpha = clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
+        gl_FragColor = vec4(vec3(0.86, 0.91, 1.0) * alpha, alpha); // a darker shade of the sand, not brown-black (a multiplier, so no colour-space conversion)
       }`,
   });
   const mesh = new THREE.Mesh(geometry, material);
