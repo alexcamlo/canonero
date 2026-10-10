@@ -38,8 +38,8 @@ export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof create
       uniform float uTime;
       varying float vBorn;
       void main() {
-        float alpha = 0.55 * clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
-        gl_FragColor = vec4(0.12, 0.06, 0.025, alpha);
+        float alpha = 0.35 * clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
+        gl_FragColor = vec4(0.2, 0.06, 0.015, alpha); // a darker shade of the sand, not brown-black
         #include <colorspace_fragment>
       }`,
   });

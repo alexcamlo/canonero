@@ -10,7 +10,7 @@ import { createTruckModel } from './truckModel';
 export const TRUCK = {
   mass: 2000, // kg
   halfExtents: { x: 2.3, y: 0.45, z: 0.95 }, // chassis collider
-  centerOfMassY: -0.1, // a bit below the box centre: visible roll without tipping in normal turns
+  centerOfMassY: -0.35, // low enough that cornering load doesn't bottom the outer springs and trip the truck on flat ground; steep sidehills can still roll it
   wheelX: 1.4, // half wheelbase
   wheelZ: 0.82, // half track
   wheelY: -0.25, // suspension mount, relative to chassis centre
