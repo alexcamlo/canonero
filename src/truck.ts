@@ -84,20 +84,31 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   // Body and physics-driven wheels share the interpolated chassis pose.
   const mesh = new THREE.Group();
   mesh.add(createTruckModel());
-  const tyre = new THREE.MeshLambertMaterial({ color: 0x2b2420 });
-  const rim = new THREE.MeshLambertMaterial({ color: 0xaaa89f });
-  const wheelGeo = new THREE.CylinderGeometry(T.wheelRadius, T.wheelRadius, 0.3, 16).rotateX(Math.PI / 2);
-  const rimGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.55, T.wheelRadius * 0.55, 0.315, 16).rotateX(Math.PI / 2);
-  const slotGeo = new THREE.BoxGeometry(0.045, 0.075, 0.012);
+  const tyre = new THREE.MeshLambertMaterial({ color: 0x252724 });
+  const rim = new THREE.MeshLambertMaterial({ color: 0x141918 });
+  const pinstripe = new THREE.MeshLambertMaterial({ color: 0xe2c658 });
+  const wheelGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.95, T.wheelRadius * 0.95, 0.34, 16).rotateX(Math.PI / 2);
+  const rimGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.55, T.wheelRadius * 0.55, 0.35, 16).rotateX(Math.PI / 2);
+  const stripeGeo = new THREE.RingGeometry(T.wheelRadius * 0.53, T.wheelRadius * 0.55, 24);
+  // Leave room for the tread corners within the physics radius.
+  const treadGeo = new THREE.BoxGeometry(T.wheelRadius * 0.27, T.wheelRadius * 0.085, 0.175);
+  const hubGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.16, T.wheelRadius * 0.16, 0.375, 8).rotateX(Math.PI / 2);
   const wheels = wheelMounts.map(([x, z]) => {
     const w = new THREE.Mesh(wheelGeo, tyre);
     w.add(new THREE.Mesh(rimGeo, rim));
-    for (let i = 0; i < 6; i++) {
-      const angle = i * Math.PI / 3;
-      const slot = new THREE.Mesh(slotGeo, tyre);
-      slot.position.set(Math.sin(angle) * T.wheelRadius * 0.36, Math.cos(angle) * T.wheelRadius * 0.36, Math.sign(z) * 0.162);
-      slot.rotation.z = -angle;
-      w.add(slot);
+    const stripe = new THREE.Mesh(stripeGeo, pinstripe);
+    stripe.position.z = Math.sign(z) * 0.179;
+    stripe.rotation.y = z > 0 ? 0 : Math.PI;
+    w.add(stripe);
+    w.add(new THREE.Mesh(hubGeo, tyre));
+    for (const row of [-1, 1]) {
+      for (let i = 0; i < 10; i++) {
+        const angle = (i + (row > 0 ? 0.5 : 0)) * Math.PI / 5;
+        const tread = new THREE.Mesh(treadGeo, tyre);
+        tread.position.set(Math.sin(angle) * T.wheelRadius * 0.945, Math.cos(angle) * T.wheelRadius * 0.945, row * 0.0875);
+        tread.rotation.z = -angle;
+        w.add(tread);
+      }
     }
     w.position.set(x, T.wheelY, z);
     mesh.add(w);
