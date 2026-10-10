@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 
 const MODEL = {
-  paint: 0xe8e2d4,
-  trim: 0x302e2b,
-  glass: 0x253b43,
-  rim: 0xaaa89f,
-  lens: 0xf4e8c9,
+  paint: 0xbfc1b9,
+  trim: 0x242727,
+  glass: 0x35464e,
+  rim: 0x141918,
+  pinstripe: 0xe2c658,
+  tint: 0x17252b,
+  lens: 0xdce3de,
   rearLens: 0x983c2b,
   halfWidth: 0.85,
   axleX: 1.4,
@@ -21,6 +23,8 @@ export function createTruckModel(): THREE.Group {
   const glass = new THREE.MeshLambertMaterial({ color: MODEL.glass, side: THREE.DoubleSide });
   const rim = new THREE.MeshLambertMaterial({ color: MODEL.rim });
   const lens = new THREE.MeshLambertMaterial({ color: MODEL.lens });
+  const pinstripe = new THREE.MeshLambertMaterial({ color: MODEL.pinstripe });
+  const tint = new THREE.MeshLambertMaterial({ color: MODEL.tint, side: THREE.DoubleSide });
   const rearLens = new THREE.MeshLambertMaterial({ color: MODEL.rearLens });
 
   function add(geometry: THREE.BufferGeometry, material: THREE.Material, x = 0, y = 0, z = 0) {
@@ -40,6 +44,15 @@ export function createTruckModel(): THREE.Group {
     return add(new THREE.ExtrudeGeometry(shape, {
       depth, steps: 1, bevelEnabled: bevel > 0, bevelSegments: 1, bevelSize: bevel, bevelThickness: bevel,
     }), material, 0, 0, z);
+  }
+
+  function pipe(from: number[], to: number[], radius: number) {
+    const start = new THREE.Vector3(...from);
+    const end = new THREE.Vector3(...to);
+    const direction = end.clone().sub(start);
+    const mesh = add(new THREE.CylinderGeometry(radius, radius, direction.length(), 6), trim);
+    mesh.position.copy(start.add(end).multiplyScalar(0.5));
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.normalize());
   }
 
   function panel(points: number[][], material = glass) {
@@ -101,9 +114,9 @@ export function createTruckModel(): THREE.Group {
   }
 
   for (const side of [-1, 1]) {
-    extrude([...sill, [2.16, 0.08], [-2.15, 0.08]], 0.025, trim, side > 0 ? 0.851 : -0.876);
     for (const axle of [-MODEL.axleX, MODEL.axleX]) {
       flare(axle, side);
+      add(new THREE.TorusGeometry(MODEL.archRadius + 0.01, 0.015, 3, 12, Math.PI), trim, axle, MODEL.archY, side * 0.935);
       const well = [];
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
@@ -117,15 +130,20 @@ export function createTruckModel(): THREE.Group {
       panel(side > 0 ? face : face.reverse(), material);
     };
     sideWindow([[-0.22, 0.49], [0.76, 0.49], [0.27, 1.01], [-0.22, 1.01]]);
-    sideWindow([[-1.06, 0.49], [-0.32, 0.49], [-0.32, 1.02], [-1.06, 1.02]]);
-    sideWindow([[-1.94, 0.59], [-1.82, 0.49], [-1.15, 0.49], [-1.15, 1.02], [-1.96, 1.02], [-2.02, 0.94]]);
+    sideWindow([[-1.06, 0.49], [-0.32, 0.49], [-0.32, 1.02], [-1.06, 1.02]], tint);
+    sideWindow([[-1.94, 0.59], [-1.82, 0.49], [-1.15, 0.49], [-1.15, 1.02], [-1.96, 1.02], [-2.02, 0.94]], tint);
 
     for (const [left, right] of [[-1.15, -1.06], [-0.32, -0.22]]) {
       sideWindow([[left, 0.49], [right, 0.49], [right, 1.02], [left, 1.02]], trim);
     }
 
     box(2.6, 0.035, 0.025, -0.62, 0.445, side * 0.882); // window sill
-    box(1.45, 0.075, 0.23, 0, -0.48, side * 0.9); // side step
+    box(1.45, 0.075, 0.23, 0, -0.48, side * 0.9, paint); // silver side step
+    box(1.45, 0.025, 0.018, 0, -0.47, side * 1.02);
+    for (const y of [-0.13, -0.2]) box(1.45, 0.025, 0.035, 0, y, side * 0.889, paint);
+    box(2.23, 0.035, 0.06, -0.86, 1.025, side * 0.782); // rain visor
+    const visor = box(0.52, 0.035, 0.06, 0.5, 0.785, side * 0.817);
+    visor.rotation.z = -0.82;
     for (const x of [-0.27, 0.84]) box(0.012, 0.43, 0.012, x, 0.205, side * 0.882);
     box(0.012, 0.16, 0.012, -1.11, 0.35, side * 0.882);
     for (const x of [-0.86, -0.04]) box(0.16, 0.055, 0.025, x, 0.32, side * 0.89);
@@ -134,46 +152,61 @@ export function createTruckModel(): THREE.Group {
     box(0.16, 0.05, 0.2, 0.62, 0.5, side * 0.9);
     box(0.23, 0.17, 0.12, 0.63, 0.58, side * 1.01);
     box(0.015, 0.12, 0.09, 0.509, 0.58, side * 1.01, glass);
-    for (const x of [-1.67, 0.04]) box(0.13, 0.09, 0.07, x, 1.12, side * 0.65);
-    box(1.97, 0.045, 0.065, -0.81, 1.18, side * 0.65); // raised roof rail
   }
 
   panel([[0.852, 0.49, -0.77], [0.852, 0.49, 0.77], [0.382, 1.01, 0.7], [0.382, 1.01, -0.7]]);
-  panel([[-2.148, 0.49, -0.76], [-2.148, 0.49, 0.76], [-2.072, 1.0, 0.7], [-2.072, 1.0, -0.7]]);
+  panel([[-2.148, 0.49, -0.76], [-2.148, 0.49, 0.76], [-2.072, 1.0, 0.7], [-2.072, 1.0, -0.7]], tint);
 
-  box(0.21, 0.24, 1.84, 2.16, -0.26, 0);
-  box(0.08, 0.14, 0.87, 2.28, -0.28, 0);
-  box(0.035, 0.29, 0.98, 2.178, 0.085, 0); // blank grille
-  for (const y of [-0.015, 0.07, 0.155]) box(0.025, 0.027, 0.9, 2.202, y, 0, rim);
+  extrude([[1.98, -0.44], [2.2, -0.4], [2.24, -0.29], [2.22, -0.1], [1.98, -0.1]], 1.78, paint, -0.89, 0.045);
+  box(0.015, 0.13, 0.87, 2.286, -0.275, 0);
+  box(0.018, 0.025, 0.84, 2.296, -0.275, 0, paint);
+  box(0.035, 0.29, 0.98, 2.178, 0.085, 0, rim); // blank grille
+  for (let i = -5; i <= 5; i++) box(0.035, 0.245, 0.027, 2.205, 0.085, i * 0.081, trim);
   for (const side of [-1, 1]) {
-    box(0.045, 0.29, 0.39, 2.19, 0.095, side * 0.68);
+    box(0.045, 0.32, 0.42, 2.19, 0.095, side * 0.69);
     const headlamp = extrude([
-      [-0.175, -0.09], [-0.14, -0.12], [0.14, -0.12], [0.175, -0.07], [0.175, 0.095], [-0.175, 0.095],
+      [-0.19, -0.095], [-0.145, -0.14], [0.145, -0.14], [0.19, -0.085], [0.19, 0.1], [0.155, 0.13], [-0.155, 0.13], [-0.19, 0.1],
     ], 0.018, lens, 0, 0.012);
     headlamp.rotation.y = Math.PI / 2;
-    headlamp.position.set(2.217, 0.105, side * 0.68);
-    box(0.22, 0.23, 0.055, 2.06, 0.095, side * 0.859, lens);
-    box(0.025, 0.075, 0.19, 2.275, -0.26, side * 0.65, lens);
+    headlamp.position.set(2.217, 0.095, side * 0.69);
+    box(0.22, 0.27, 0.055, 2.06, 0.095, side * 0.859, lens);
+    box(0.022, 0.16, 0.29, 2.276, -0.265, side * 0.64, rim);
+    box(0.028, 0.12, 0.245, 2.291, -0.265, side * 0.64, lens);
+    box(0.13, 0.08, 0.055, 2.26, -0.075, side * 0.35);
+    add(new THREE.CylinderGeometry(0.135, 0.135, 0.075, 12).rotateZ(Math.PI / 2), rim, 2.31, 0.045, side * 0.35);
+    add(new THREE.CylinderGeometry(0.113, 0.113, 0.012, 12).rotateZ(Math.PI / 2), lens, 2.354, 0.045, side * 0.35);
     box(0.085, 0.45, 0.18, -2.17, 0.18, side * 0.758);
     box(0.09, 0.23, 0.15, -2.18, 0.07, side * 0.758, rearLens);
     box(0.09, 0.17, 0.15, -2.18, 0.29, side * 0.758, lens);
   }
 
-  box(0.24, 0.2, 1.85, -2.15, -0.38, 0);
+  extrude([[-2.27, -0.4], [-2.2, -0.48], [-2.03, -0.48], [-2.03, -0.27], [-2.27, -0.27]], 1.78, paint, -0.89, 0.03);
   box(0.035, 0.62, 1.27, -2.173, 0.07, 0, trim);
   box(0.045, 0.59, 1.24, -2.196, 0.07, 0, paint); // inset outline of the single side-hinged door
   box(0.065, 0.065, 0.19, -2.23, 0.21, -0.45, trim);
   for (const y of [-0.15, 0.32]) box(0.07, 0.065, 0.12, -2.23, y, 0.62, rim);
 
+  // The scoop follows the bonnet slope; its forward mouth stays open and dark.
+  extrude([[1.12, 0.41], [1.57, 0.349], [1.57, 0.44], [1.24, 0.46]], 0.42, paint, -0.21, 0.012);
+  box(0.015, 0.045, 0.33, 1.59, 0.413, 0);
+  for (const z of [-0.055, 0.055]) box(0.02, 0.045, 0.012, 1.6, 0.413, z, rim);
+
+  // Right-side intake runs along the A-pillar, with the mouth facing +x.
+  pipe([1.16, 0.3, 0.92], [0.89, 0.46, 0.94], 0.075);
+  pipe([0.89, 0.46, 0.94], [0.32, 1.13, 0.83], 0.065);
+  pipe([0.32, 1.13, 0.83], [0.32, 1.36, 0.83], 0.065);
+  extrude([[0.25, 1.3], [0.5, 1.3], [0.56, 1.43], [0.25, 1.43]], 0.18, trim, 0.74, 0.012);
+  box(0.014, 0.085, 0.135, 0.557, 1.38, 0.83, tint);
+  box(0.1, 0.04, 0.14, 0.39, 1.015, 0.8);
+  pipe([1.02, 0.45, 0.64], [1.02, 0.56, 0.64], 0.022);
+  pipe([1.02, 0.56, 0.64], [0.88, 2.15, 0.64], 0.006); // whip antenna
+
   const spare = new THREE.TorusGeometry(0.29, 0.11, 6, 20).rotateY(Math.PI / 2);
   add(spare, trim, -2.37, 0.30, 0.16);
   add(new THREE.CylinderGeometry(0.22, 0.22, 0.075, 16).rotateZ(Math.PI / 2), rim, -2.45, 0.30, 0.16);
+  const spareStripe = new THREE.RingGeometry(0.211, 0.22, 24).rotateY(-Math.PI / 2);
+  add(spareStripe, pinstripe, -2.491, 0.30, 0.16);
   add(new THREE.CylinderGeometry(0.08, 0.08, 0.085, 8).rotateZ(Math.PI / 2), trim, -2.49, 0.30, 0.16);
-  for (let i = 0; i < 6; i++) {
-    const angle = i * Math.PI / 3;
-    const slot = box(0.014, 0.075, 0.045, -2.493, 0.30 + Math.cos(angle) * 0.145, 0.16 + Math.sin(angle) * 0.145);
-    slot.rotation.x = angle;
-  }
 
   return body;
 }
