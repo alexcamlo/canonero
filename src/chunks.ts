@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { softness } from './terrain';
 
 export const CHUNK_SIZE = 64; // m
 export const CHUNK_CELLS = 32; // grid cells per side (2 m spacing)
@@ -9,7 +10,7 @@ const FAR_CELLS = CHUNK_CELLS / 4; // 8 m spacing is plenty under the haze
 const SKIRT = 8; // m a coarse chunk's edge hangs down, hiding cracks where it meets finer neighbours
 
 type Height = (x: number, z: number) => number;
-type GroundColor = (x: number, z: number) => [number, number, number];
+type GroundColor = (x: number, z: number, soft: number) => [number, number, number];
 
 // Heights for chunk (cx, cz), centred at (cx, cz) * CHUNK_SIZE, in Rapier's heightfield layout
 // (column-major: consecutive values walk along z). Samples sit on one world-aligned grid, so
@@ -53,7 +54,8 @@ export function createChunks(world: RAPIER.World, scene: THREE.Scene, height: He
         position.setXYZ(v, i * step - CHUNK_SIZE / 2, heights[j + i * n] - sag, j * step - CHUNK_SIZE / 2);
         // Smooth normals from central differences on the world grid, so neighbours agree at shared edges.
         normal.setXYZ(v, at(i - 1, j) - at(i + 1, j), 2 * step, at(i, j - 1) - at(i, j + 1));
-        const [r, g, b] = groundColor(x0 + i * step, z0 + j * step);
+        const soft = softness(heights[j + i * n], at(i + 1, j), at(i - 1, j), at(i, j + 1), at(i, j - 1), step); // reuses the grid's heights
+        const [r, g, b] = groundColor(x0 + i * step, z0 + j * step, soft);
         color.setRGB(r, g, b, THREE.SRGBColorSpace).toArray(colors, v * 3); // to linear working space
       }
     }

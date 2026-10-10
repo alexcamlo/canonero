@@ -5,7 +5,7 @@ import { createChunks } from './chunks';
 import { createHud } from './hud';
 import { readInput } from './input';
 import { createScene } from './scene';
-import { createGroundColor, createHeight, createSurface, findFlatSpot, seedFromUrl } from './terrain';
+import { createGroundColor, createHeight, createSoftness, findFlatSpot, seedFromUrl } from './terrain';
 import { createTouchControls } from './touch';
 import { createTracks } from './tracks';
 import { createTruck } from './truck';
@@ -20,12 +20,12 @@ const { renderer, scene, camera, update } = createScene();
 
 const seed = seedFromUrl();
 const height = createHeight(seed);
-const surface = createSurface(seed);
+const softness = createSoftness(height);
 const chunks = createChunks(world, scene, height, createGroundColor(seed));
 chunks.update(new THREE.Vector3(), Infinity);
 
-const spawn = findFlatSpot(height, surface, 0, 0, 150, 10); // the origin can sit on a mega-dune's face
-const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), surface);
+const spawn = findFlatSpot(height, softness, 0, 0, 150, 10); // the origin can sit on a mega-dune's face
+const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), softness);
 const tracks = createTracks(scene, truck);
 const hud = createHud();
 createTouchControls();
@@ -40,7 +40,7 @@ addEventListener('keydown', (e) => {
   if (e.code === 'KeyC') toggleView();
   if (e.code === 'KeyT') {
     const p = truck.body.translation();
-    const spot = findFlatSpot(height, surface, p.x, p.z);
+    const spot = findFlatSpot(height, softness, p.x, p.z);
     truck.reset(spot.x, spot.z, height(spot.x, spot.z));
   }
 });

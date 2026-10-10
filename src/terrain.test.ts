@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
 import { CHUNK_CELLS, chunkHeights } from './chunks';
-import { createGroundColor, createHeight, createSurface, findFlatSpot, regionWeights } from './terrain';
+import { createGroundColor, createHeight, createSoftness, findFlatSpot, regionWeights, softness } from './terrain';
 
 const samples = [
   [0, 0],
@@ -77,22 +77,72 @@ describe('chunkHeights', () => {
   });
 });
 
-describe('findFlatSpot', () => {
-  test('stays within radius, on firm sand, and is no steeper than a firm start', () => {
+// Heights for softness(): centre, then 2 m along +x, -x, +z, -z.
+const plane = (gx: number, gz = 0) => softness(0, 2 * gx, -2 * gx, 2 * gz, -2 * gz);
+
+describe('softness', () => {
+  test('lee faces (falling toward +x, downwind) are softer than windward faces', () => {
+    expect(plane(-0.4)).toBeGreaterThan(plane(0.4) + 0.4);
+    expect(plane(-0.15)).toBeGreaterThan(plane(0.15));
+  });
+
+  test('sharp crests and bowls are softer than mid windward slopes and open flats', () => {
+    const crest = softness(0, -0.1, -0.1, -0.1, -0.1); // 10 cm drop 2 m to every side
+    const bowl = softness(0, 0.06, 0.06, 0.06, 0.06);
+    for (const firm of [plane(0.25), plane(0)]) {
+      expect(crest).toBeGreaterThan(firm + 0.3);
+      expect(bowl).toBeGreaterThan(firm + 0.3);
+    }
+  });
+
+  test('on a real desert: deterministic, 0..1, lee faces softer than windward ones', () => {
     const h = createHeight('dune');
-    const surface = createSurface('dune');
+    const soft = createSoftness(h);
+    const again = createSoftness(createHeight('dune'));
+    const lee: number[] = [];
+    const windward: number[] = [];
+    for (let x = -1500; x <= 1500; x += 41) {
+      for (let z = -1500; z <= 1500; z += 41) {
+        const s = soft(x, z);
+        expect(s).toBe(again(x, z));
+        expect(s).toBeGreaterThanOrEqual(0);
+        expect(s).toBeLessThanOrEqual(1);
+        const gx = (h(x + 2, z) - h(x - 2, z)) / 4;
+        if (gx < -0.2) lee.push(s);
+        if (gx > 0.2) windward.push(s);
+      }
+    }
+    const mean = (a: number[]) => a.reduce((t, v) => t + v, 0) / a.length;
+    expect(lee.length).toBeGreaterThan(50);
+    expect(mean(lee)).toBeGreaterThan(mean(windward) + 0.4);
+  }, 30_000); // a few thousand height samples
+});
+
+describe('findFlatSpot', () => {
+  test('stays within radius and finds ground at least as flat and firm as the start', () => {
+    const h = createHeight('dune');
+    const soft = createSoftness(h);
     const slope = (x: number, z: number) => Math.hypot(h(x + 1, z) - h(x - 1, z), h(x, z + 1) - h(x, z - 1)) / 2;
     for (const [x, z] of samples) {
-      const p = findFlatSpot(h, surface, x, z, 30);
+      const p = findFlatSpot(h, soft, x, z, 30);
       expect(Math.hypot(p.x - x, p.z - z)).toBeLessThanOrEqual(30);
-      expect(surface(p.x, p.z)).toBe('sand');
-      if (surface(x, z) === 'sand') expect(slope(p.x, p.z)).toBeLessThanOrEqual(slope(x, z));
+      expect(slope(p.x, p.z) + soft(p.x, p.z)).toBeLessThanOrEqual(slope(x, z) + soft(x, z));
+      const spawn = findFlatSpot(h, soft, x, z, 150, 10); // main.ts's spawn search
+      expect(soft(spawn.x, spawn.z)).toBeLessThan(0.2);
     }
   });
 });
 
 describe('createGroundColor', () => {
   test('is deterministic', () => {
-    expect(createGroundColor('dune')(10, 20)).toEqual(createGroundColor('dune')(10, 20));
+    expect(createGroundColor('dune')(10, 20, 0.5)).toEqual(createGroundColor('dune')(10, 20, 0.5));
+  });
+
+  test('loose sand is subtly paler than packed sand', () => {
+    const color = createGroundColor('dune');
+    const sum = (c: number[]) => c[0] + c[1] + c[2];
+    const firm = sum(color(10, 20, 0));
+    expect(sum(color(10, 20, 1))).toBeGreaterThan(firm + 0.05);
+    expect(sum(color(10, 20, 1))).toBeLessThan(firm + 0.4);
   });
 });
