@@ -46,10 +46,10 @@ export function regionWeights(seed: string) {
   };
 }
 
-// Per-region sand tones (sRGB 0-1) and the paler, greyer silt of riverbeds.
+// Per-region sand tones (sRGB 0-1) and the paler silt of riverbeds.
 const GROUND = {
-  palettes: [[0.93, 0.8, 0.59], [0.87, 0.55, 0.28], [0.7, 0.29, 0.17]],
-  riverbed: [0.84, 0.8, 0.72],
+  palettes: [[0.93, 0.72, 0.47], [0.92, 0.6, 0.33], [0.9, 0.5, 0.25]],
+  riverbed: [0.86, 0.77, 0.62],
 };
 
 // Ground colour at world (x, z): region palettes blended by weight, then mixed toward riverbed silt.
@@ -65,6 +65,9 @@ export function createGroundColor(seed: string) {
     }) as [number, number, number];
   };
 }
+
+// Ridge crest softening: smaller = crisper crest lines. Transverse dunes stay drivable; star dunes are meant to be hard.
+const CREST = { transverse: 0.013, star: 0.006 };
 
 // Terrain height in metres at world (x, z); a pure function of the seed.
 export function createHeight(seed: string) {
@@ -82,16 +85,16 @@ export function createHeight(seed: string) {
     // One wind along +x: stretch every crest along z, with only a light warp.
     const w = warp(x * 0.004, z * 0.004) * 0.2;
     const n = ridge(x * 0.008 + w, z * 0.0015);
-    const r = 1 - Math.sqrt(n * n + 0.02);
+    const r = 1 - Math.sqrt(n * n + CREST.transverse);
     return r * r * dunes.ridgeAmplitude;
   };
   const star = (x: number, z: number) => {
     x *= dunes.starFrequency;
     z *= dunes.starFrequency;
     // Intersect three ridge directions to make peaks with radial arms.
-    const a = 1 - Math.sqrt(ridge(x, z * 0.3) ** 2 + 0.02);
-    const b = 1 - Math.sqrt(ridge(x * 0.5 + z * 0.866, (z * 0.5 - x * 0.866) * 0.3) ** 2 + 0.02);
-    const c = 1 - Math.sqrt(ridge(x * 0.5 - z * 0.866, (z * 0.5 + x * 0.866) * 0.3) ** 2 + 0.02);
+    const a = 1 - Math.sqrt(ridge(x, z * 0.3) ** 2 + CREST.star);
+    const b = 1 - Math.sqrt(ridge(x * 0.5 + z * 0.866, (z * 0.5 - x * 0.866) * 0.3) ** 2 + CREST.star);
+    const c = 1 - Math.sqrt(ridge(x * 0.5 - z * 0.866, (z * 0.5 + x * 0.866) * 0.3) ** 2 + CREST.star);
     return a * b * c * dunes.starAmplitude;
   };
 
