@@ -2,18 +2,18 @@ import * as THREE from 'three';
 import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
 
 const MODEL = {
-  paint: 0xbfc1b9,
+  paint: 0xb4d7f2,
   trim: 0x242727,
   glass: 0x35464e,
-  rim: 0x141918,
+  rim: 0x2c363b,
   pinstripe: 0xe2c658,
   tint: 0x17252b,
-  lens: 0xdce3de,
+  lens: 0xc4d9e8,
   rearLens: 0x983c2b,
   halfWidth: 0.85,
   axleX: 1.4,
-  archY: -0.48,
-  archRadius: 0.54,
+  archY: -0.445,
+  archRadius: 0.48, // Clear the 0.4 m tyre at y = -0.40 under full compression.
 };
 
 // Body only, in chassis-local coordinates: +x forward, +y up, +z right.
@@ -95,7 +95,7 @@ export function createTruckModel(): THREE.Group {
     }
   }
   sill.push([2.16, MODEL.archY]);
-  extrude([...sill, [2.16, -0.085], [1.9, -0.085], [1.9, 0.12], [0.82, 0.12], [0.78, 0.43], [-2.0, 0.43]], MODEL.halfWidth * 2 - 0.02, paint, -MODEL.halfWidth + 0.01, 0.025);
+  extrude([...sill, [2.16, -0.085], [1.9, -0.085], [1.9, 0.12], [0.82, 0.12], [0.78, 0.43], [-2.0, 0.43]], MODEL.halfWidth * 2 - 0.02, paint, -MODEL.halfWidth + 0.01, 0.012);
 
   // x, centre height, wing height, half-width: the last sections roll down into the grille.
   const nose = [
@@ -137,7 +137,7 @@ export function createTruckModel(): THREE.Group {
   function flare(axle: number, side: number) {
     const positions = [];
     const indices = [];
-    const rings = [[MODEL.archRadius, 0.92], [0.565, 0.94], [0.63, 0.92], [0.69, MODEL.halfWidth]];
+    const rings = [[MODEL.archRadius, 0.89], [MODEL.archRadius + 0.012, 0.905], [MODEL.archRadius + 0.042, 0.89], [MODEL.archRadius + 0.075, MODEL.halfWidth]];
     for (const [radius, width] of rings) {
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
@@ -161,13 +161,13 @@ export function createTruckModel(): THREE.Group {
   for (const side of [-1, 1]) {
     for (const axle of [-MODEL.axleX, MODEL.axleX]) {
       flare(axle, side);
-      const edging = new THREE.RingGeometry(MODEL.archRadius, MODEL.archRadius + 0.025, 12, 1, 0, Math.PI);
+      const edging = new THREE.RingGeometry(MODEL.archRadius, MODEL.archRadius + 0.014, 12, 1, 0, Math.PI);
       if (side < 0) edging.rotateY(Math.PI);
-      add(edging, trim, axle, MODEL.archY, side * 0.932);
+      add(edging, trim, axle, MODEL.archY, side * 0.897);
       const well = [];
       for (let i = 0; i <= 12; i++) {
         const angle = Math.PI * i / 12;
-        well.push([axle + 0.53 * Math.cos(angle), MODEL.archY + 0.53 * Math.sin(angle)]);
+        well.push([axle + (MODEL.archRadius - 0.01) * Math.cos(angle), MODEL.archY + (MODEL.archRadius - 0.01) * Math.sin(angle)]);
       }
       panel((side > 0 ? well : well.reverse()).map(([x, y]) => [x, y, side * 0.6]), trim);
     }
@@ -185,9 +185,21 @@ export function createTruckModel(): THREE.Group {
     }
 
     box(2.6, 0.035, 0.025, -0.62, 0.445, side * 0.882); // window sill
-    box(1.45, 0.075, 0.23, 0, -0.48, side * 0.9, paint); // silver side step
-    box(1.45, 0.025, 0.018, 0, -0.47, side * 1.02);
-    for (const y of [-0.13, -0.2]) box(1.45, 0.025, 0.035, 0, y, side * 0.889, paint);
+    loft([-0.86, -0.76, 0.76, 0.86].map((x) => {
+      const shoulder = Math.abs(x) > 0.8 ? 0.015 : 0;
+      const profile = [[-0.40, 0.83], [-0.37, 0.872], [-0.24, 0.895], [-0.21, 0.888], [-0.185, 0.895], [-0.15, 0.89], [-0.12, 0.85]]
+        .map(([y, z]) => [x, y, side * (z - shoulder)]);
+      return side > 0 ? profile.reverse() : profile;
+    }));
+    loft([-0.84, 0.84].map((x) => {
+      const profile = [[-0.46, 0.81], [-0.46, 1.02], [-0.50, 1.02], [-0.51, 0.99], [-0.51, 0.81], [-0.46, 0.81]]
+        .map(([y, z]) => [x, y, side * z]);
+      return side > 0 ? profile : profile.reverse();
+    }));
+    loft([-0.75, 0.75].map((x) => {
+      const profile = [[x, -0.454, side * 0.91], [x, -0.454, side * 1.0]];
+      return side > 0 ? profile : profile.reverse();
+    }), trim);
     box(2.23, 0.035, 0.06, -0.86, 1.025, side * 0.782); // rain visor
     const visor = box(0.52, 0.035, 0.06, 0.5, 0.785, side * 0.817);
     visor.rotation.z = -0.82;
@@ -197,7 +209,8 @@ export function createTruckModel(): THREE.Group {
     for (let i = 0; i < 3; i++) box(0.18 - i * 0.03, 0.018, 0.015, -2.03, 0.49 + i * 0.04, side * 0.85);
 
     box(0.16, 0.05, 0.2, 0.62, 0.5, side * 0.9);
-    box(0.23, 0.17, 0.12, 0.63, 0.58, side * 1.01);
+    extrude([[0.51, 0.52], [0.535, 0.495], [0.72, 0.495], [0.755, 0.525], [0.755, 0.635], [0.725, 0.665], [0.535, 0.665], [0.51, 0.64]],
+      0.12, trim, side > 0 ? 0.95 : -1.07);
     box(0.015, 0.12, 0.09, 0.509, 0.58, side * 1.01, glass);
   }
 
@@ -210,15 +223,17 @@ export function createTruckModel(): THREE.Group {
   }
 
   // Bumper sections follow the same rounded plan as the nose, returning into the wings.
-  loft([
+  const bumper = [
     [-0.92, 2.00], [-0.89, 2.13], [-0.8, 2.25], [-0.6, 2.30], [0, 2.315],
     [0.6, 2.30], [0.8, 2.25], [0.89, 2.13], [0.92, 2.00],
-  ].map(([z, front]) => [
-    [1.96, -0.44, z], [front - 0.055, -0.44, z], [front, -0.37, z],
-    [front + 0.005, -0.16, z], [front - 0.02, -0.09, z], [1.96, -0.09, z], [1.96, -0.44, z],
+  ];
+  loft(bumper.map(([z, front]) => [
+    [1.96, -0.445, z], [front - 0.07, -0.445, z], [front - 0.025, -0.425, z], [front + 0.008, -0.37, z],
+    [front + 0.01, -0.235, z], [front - 0.008, -0.222, z], [front + 0.009, -0.209, z],
+    [front + 0.004, -0.15, z], [front - 0.02, -0.09, z], [1.96, -0.09, z], [1.96, -0.445, z],
   ]));
-  box(0.015, 0.13, 0.87, 2.345, -0.275, 0);
-  box(0.018, 0.025, 0.84, 2.36, -0.275, 0, paint);
+  loft(bumper.map(([z, front]) => [[front - 0.006, -0.225, z], [front - 0.006, -0.219, z]]), trim);
+  box(0.015, 0.105, 0.83, 2.345, -0.315, 0);
   box(0.035, 0.29, 0.98, 2.207, 0.085, 0, rim); // blank grille
   for (let i = -5; i <= 5; i++) box(0.035, 0.215, 0.027, 2.234, 0.077, i * 0.081, trim);
   for (const side of [-1, 1]) {
@@ -233,14 +248,14 @@ export function createTruckModel(): THREE.Group {
           // Shrink along the surface, then lift outwards on both axes around the corner.
           if (col === 0) z += inset;
           if (col === lamp.length - 1) x += inset;
-          return [x + inset / 2, THREE.MathUtils.lerp(bottom + inset, top - inset, row), side * (z + inset / 2)];
+          return [x + inset / 2 + (row === 0.5 ? 0.01 : 0), THREE.MathUtils.lerp(bottom + inset, top - inset, row), side * (z + inset / 2)];
         });
         return side > 0 ? profile.reverse() : profile;
       }), material);
     }
-    for (const [inset, material] of [[0, rim], [0.015, lens]] as const) {
-      loft([-0.345 + inset, -0.185 - inset].map((y) => {
-        const profile = [[2.325 + inset / 2, y, side * (0.50 + inset)], [2.29 + inset / 2, y, side * (0.76 - inset)]];
+    for (const [inset, material] of [[0, rim], [0.01, lens]] as const) {
+      loft([-0.385 + inset, -0.26 - inset].map((y) => {
+        const profile = [[2.322 + inset / 2, y, side * (0.52 + inset)], [2.318 + inset / 2, y, side * 0.60], [2.268 + inset / 2, y, side * (0.80 - inset)]];
         return side > 0 ? profile.reverse() : profile;
       }), material);
     }
@@ -293,6 +308,15 @@ export function createTruckModel(): THREE.Group {
   const spare = new THREE.TorusGeometry(0.29, 0.11, 6, 20).rotateY(Math.PI / 2);
   add(spare, trim, -2.37, 0.30, 0.16);
   add(new THREE.CylinderGeometry(0.22, 0.22, 0.075, 16).rotateZ(Math.PI / 2), rim, -2.45, 0.30, 0.16);
+  const spareVent = new THREE.ShapeGeometry(new THREE.Shape(Array.from({ length: 6 }, (_, i) =>
+    new THREE.Vector2(0.032 * Math.cos(i * Math.PI / 3), 0.044 * Math.sin(i * Math.PI / 3)),
+  )));
+  for (let i = 0; i < 6; i++) {
+    const angle = i * Math.PI / 3;
+    const vent = add(spareVent.clone(), tint, -2.492, 0.30 + 0.148 * Math.sin(angle), 0.16 + 0.148 * Math.cos(angle));
+    vent.rotation.set(0, -Math.PI / 2, angle - Math.PI / 2);
+  }
+  spareVent.dispose();
   const spareStripe = new THREE.RingGeometry(0.211, 0.22, 24).rotateY(-Math.PI / 2);
   add(spareStripe, pinstripe, -2.491, 0.30, 0.16);
   add(new THREE.CylinderGeometry(0.08, 0.08, 0.085, 8).rotateZ(Math.PI / 2), trim, -2.49, 0.30, 0.16);
