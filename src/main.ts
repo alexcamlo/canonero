@@ -1,6 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { updateChaseCamera } from './camera';
+import { setCockpit, updateChaseCamera, updateCockpitCamera } from './camera';
 import { createChunks } from './chunks';
 import { createHud } from './hud';
 import { readInput } from './input';
@@ -30,10 +30,13 @@ const hud = createHud();
 createTouchControls();
 const fwd = new THREE.Vector3();
 camera.position.set(-10, height(-10, 0) + 4, 0);
+let cockpit = false;
+const toggleView = () => setCockpit(camera, (cockpit = !cockpit));
 
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'KeyF') truck.flip();
+  if (e.code === 'KeyC') toggleView();
   if (e.code === 'KeyT') {
     const p = truck.body.translation();
     const spot = findFlatSpot(height, surface, p.x, p.z);
@@ -49,6 +52,7 @@ renderer.setAnimationLoop((now) => {
   acc += dt;
   const input = readInput();
   if (input.rangeToggle) truck.toggleRange(); // once per frame, not per physics step
+  if (input.viewToggle) toggleView();
   while (acc >= STEP) {
     truck.update(input, STEP);
     world.step();
@@ -60,7 +64,9 @@ renderer.setAnimationLoop((now) => {
   hud.update(truck.state(), fwd.x, fwd.z, dt);
   tracks.update(now / 1000);
   chunks.update(truck.mesh.position);
-  updateChaseCamera(camera, truck.mesh, dt, height);
+  if (cockpit) updateCockpitCamera(camera, truck.mesh, dt);
+  else updateChaseCamera(camera, truck.mesh, dt, height);
+  truck.model.setInterior(cockpit, truck.vehicle.wheelSteering(0) ?? 0);
   follow(truck.mesh.position);
   renderer.render(scene, camera);
 });

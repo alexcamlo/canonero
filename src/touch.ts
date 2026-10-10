@@ -1,5 +1,5 @@
 // Phone controls: drag anywhere as an analogue stick (up = gas, down = brake/reverse, sideways = steer),
-// plus one Flip button that fakes the F key, so the existing flip handler works unchanged.
+// plus Flip and View buttons that fake the F and C keys, so the existing keydown handlers work unchanged.
 // Range, air and reset stay keyboard/gamepad only: unused on phones so far.
 const RADIUS = 60; // px of drag for full throttle/steer
 
@@ -21,10 +21,13 @@ export function createTouchControls() {
   const flip = document.createElement('button');
   flip.textContent = 'Flip';
   flip.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF' })));
-  root.append(flip);
+  const view = document.createElement('button');
+  view.textContent = 'View';
+  view.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' })));
+  root.append(flip, view);
   addEventListener('contextmenu', (e) => e.preventDefault());
 
-  let finger: number | null = null; // one drag at a time; other fingers can tap Flip
+  let finger: number | null = null; // one drag at a time; other fingers can tap Flip or View
   let ox = 0;
   let oy = 0;
   addEventListener('pointerdown', (e) => {
