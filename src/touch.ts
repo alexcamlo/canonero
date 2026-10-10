@@ -1,12 +1,6 @@
 // Phone controls: drag anywhere as an analogue stick (up = gas, down = brake/reverse, sideways = steer),
-// plus a small row of buttons that fake their keyboard key, so input.ts and the flip/reset handlers work unchanged.
-const BUTTONS = [
-  { code: 'KeyL', label: 'Hi/Lo' },
-  { code: 'KeyP', label: 'Air −' },
-  { code: 'KeyO', label: 'Air +' },
-  { code: 'KeyF', label: 'Flip' },
-  { code: 'KeyT', label: 'Reset' },
-];
+// plus one Flip button that fakes the F key, so the existing flip handler works unchanged.
+// Range, air and reset stay keyboard/gamepad only: unused on phones so far.
 const RADIUS = 60; // px of drag for full throttle/steer
 
 // Read by input.ts; x: -1 left .. 1 right, y: -1 up .. 1 down.
@@ -17,30 +11,20 @@ export function createTouchControls() {
 
   const root = document.createElement('div');
   root.id = 'touch';
-  const tools = document.createElement('div');
-  tools.className = 'tools';
   const ring = document.createElement('div');
   ring.className = 'ring';
   const knob = document.createElement('div');
   knob.className = 'knob';
   ring.append(knob);
-  root.append(tools, ring);
+  root.append(ring);
 
-  for (const b of BUTTONS) {
-    const el = document.createElement('button');
-    el.textContent = b.label;
-    const send = (type: 'keydown' | 'keyup') => dispatchEvent(new KeyboardEvent(type, { code: b.code }));
-    el.addEventListener('pointerdown', (e) => {
-      send('keydown');
-      el.setPointerCapture(e.pointerId); // finger sliding off still releases this button
-    });
-    el.addEventListener('pointerup', () => send('keyup'));
-    el.addEventListener('pointercancel', () => send('keyup'));
-    tools.append(el);
-  }
+  const flip = document.createElement('button');
+  flip.textContent = 'Flip';
+  flip.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF' })));
+  root.append(flip);
   addEventListener('contextmenu', (e) => e.preventDefault());
 
-  let finger: number | null = null; // one drag at a time; the buttons take other fingers
+  let finger: number | null = null; // one drag at a time; other fingers can tap Flip
   let ox = 0;
   let oy = 0;
   addEventListener('pointerdown', (e) => {
