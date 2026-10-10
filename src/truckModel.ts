@@ -28,6 +28,7 @@ export function createTruckModel(): THREE.Group & { setInterior(on: boolean, ste
   const glass = new THREE.MeshLambertMaterial({ color: MODEL.glass, side: THREE.DoubleSide });
   const rim = new THREE.MeshLambertMaterial({ color: MODEL.rim });
   const lens = new THREE.MeshLambertMaterial({ color: MODEL.lens });
+  const headlamp = new THREE.MeshLambertMaterial({ color: MODEL.lens, name: 'headlamp' }); // the truck makes these glow at night
   const pinstripe = new THREE.MeshLambertMaterial({ color: MODEL.pinstripe });
   const tint = new THREE.MeshLambertMaterial({ color: MODEL.tint, side: THREE.DoubleSide });
   const rearLens = new THREE.MeshLambertMaterial({ color: MODEL.rearLens });
@@ -246,7 +247,7 @@ export function createTruckModel(): THREE.Group & { setInterior(on: boolean, ste
       [2.248, 0.48, -0.064, 0.238], [2.23, 0.64, -0.064, 0.244],
       [2.17, 0.76, -0.047, 0.26], [2.06, 0.845, 0.0, 0.27], [1.94, 0.868, 0.055, 0.25],
     ];
-    for (const [inset, material] of [[0, trim], [0.008, lens]] as const) {
+    for (const [inset, material] of [[0, trim], [0.008, headlamp]] as const) {
       loft([0, 0.5, 1].map((row) => {
         const profile = lamp.map(([x, z, bottom, top], col) => {
           // Shrink along the surface, then lift outwards on both axes around the corner.
@@ -265,7 +266,7 @@ export function createTruckModel(): THREE.Group & { setInterior(on: boolean, ste
     }
     box(0.13, 0.08, 0.055, 2.26, -0.075, side * 0.35);
     add(new THREE.CylinderGeometry(0.135, 0.135, 0.075, 12).rotateZ(Math.PI / 2), rim, 2.31, 0.045, side * 0.35);
-    add(new THREE.CylinderGeometry(0.113, 0.113, 0.012, 12).rotateZ(Math.PI / 2), lens, 2.354, 0.045, side * 0.35);
+    add(new THREE.CylinderGeometry(0.113, 0.113, 0.012, 12).rotateZ(Math.PI / 2), headlamp, 2.354, 0.045, side * 0.35);
     // A narrow divider separates the main reflector from the corner lens.
     loft([-0.042, 0.257].map((y) => {
       const profile = [[2.18, y, side * 0.765], [2.172, y, side * 0.773]];

@@ -40,6 +40,8 @@ export const TRUCK = {
   airedSideGrip: 0.6, // cornering grip fraction at zero pressure
   airedSteerRate: 0.6, // steering speed fraction at zero pressure
   rockSpeed: 0.2, // m/s the truck must move each way for a direction change to count as rocking
+  headlightIntensity: 60, // per lamp at full dark; falls off with distance (decay 1, for a longer throw than physical)
+  headlightAngle: 0.5, // rad, beam half-angle
 };
 
 const T = TRUCK;
@@ -127,6 +129,17 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   });
   mesh.traverse((o) => (o.castShadow = true));
   scene.add(mesh);
+
+  // Headlights, added after the shadow pass above: the sun/moon stays the only shadow caster.
+  let headlamp!: THREE.MeshLambertMaterial;
+  mesh.traverse((o) => { if (o instanceof THREE.Mesh && o.material.name === 'headlamp') headlamp = o.material; });
+  const beams = [-0.6, 0.6].map((z) => {
+    const beam = new THREE.SpotLight(0xfff0d8, 0, 0, T.headlightAngle, 0.5, 1);
+    beam.position.set(2.3, 0.1, z);
+    beam.target.position.set(20, -1.3, z * 2); // dipped onto the sand ahead
+    mesh.add(beam, beam.target);
+    return beam;
+  });
 
   // Pose before the latest physics step, so render() can interpolate between it and the current pose.
   const prevPos = new THREE.Vector3().copy(start);
@@ -247,10 +260,16 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     });
   }
 
+  // level 0..1: off by day, full at night.
+  function headlights(level: number) {
+    for (const beam of beams) beam.intensity = level * T.headlightIntensity;
+    headlamp.emissive.setRGB(level, level, level * 0.85);
+  }
+
   function toggleRange() {
     range = range === 'high' ? 'low' : 'high';
   }
 
   // gear/rpm are unused until the audio ticket (#13) lands
-  return { body, vehicle, mesh, model, update, render, flip, reset, toggleRange, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
+  return { body, vehicle, mesh, model, update, render, flip, reset, toggleRange, headlights, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
 }

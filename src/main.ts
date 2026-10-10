@@ -16,7 +16,7 @@ await RAPIER.init();
 const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 world.timestep = STEP;
 
-const { renderer, scene, camera, follow } = createScene();
+const { renderer, scene, camera, update } = createScene();
 
 const seed = seedFromUrl();
 const height = createHeight(seed);
@@ -67,6 +67,6 @@ renderer.setAnimationLoop((now) => {
   if (cockpit) updateCockpitCamera(camera, truck.mesh, dt);
   else updateChaseCamera(camera, truck.mesh, dt, height);
   truck.model.setInterior(cockpit, truck.vehicle.wheelSteering(0) ?? 0);
-  follow(truck.mesh.position);
+  truck.headlights(update(dt, truck.mesh.position));
   renderer.render(scene, camera);
 });
