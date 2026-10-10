@@ -1,8 +1,8 @@
 import { createNoise2D } from 'simplex-noise';
 
 const RIVER = {
-  frequency: 0.0015, warpFrequency: 0.002, warp: 0.35, distanceScale: 160,
-  halfWidth: 10, bankWidth: 32,
+  frequency: 0.0006, warpFrequency: 0.0008, warp: 0.35, distanceScale: 400, // channels ~1.5 km apart; width ∝ 1/(frequency·distanceScale)
+  halfWidth: 10, bankWidth: 48,
 };
 
 // mulberry32 seeded from an FNV-1a hash of the seed string
@@ -71,7 +71,7 @@ const CREST = { transverse: 0.013, star: 0.006 };
 
 // Terrain height in metres at world (x, z); a pure function of the seed.
 export function createHeight(seed: string) {
-  const dunes = { rollingAmplitude: 4, ridgeAmplitude: 12, starAmplitude: 21, starFrequency: 0.006 };
+  const dunes = { rollingAmplitude: 6, ridgeAmplitude: 18, starAmplitude: 32, starFrequency: 0.004 };
   const random = prng(seed);
   const swell = createNoise2D(random);
   const ridge = createNoise2D(random);
@@ -80,11 +80,11 @@ export function createHeight(seed: string) {
   const oz = random() * 1e4;
   const weights = regionWeights(seed);
   const bed = createRiverbed(seed);
-  const rolling = (x: number, z: number) => swell(x * 0.005, z * 0.005) * dunes.rollingAmplitude;
+  const rolling = (x: number, z: number) => swell(x * 0.0033, z * 0.0033) * dunes.rollingAmplitude;
   const transverse = (x: number, z: number) => {
     // One wind along +x: stretch every crest along z, with only a light warp.
     const w = warp(x * 0.004, z * 0.004) * 0.2;
-    const n = ridge(x * 0.008 + w, z * 0.0015);
+    const n = ridge(x * 0.0053 + w, z * 0.001);
     const r = 1 - Math.sqrt(n * n + CREST.transverse);
     return r * r * dunes.ridgeAmplitude;
   };
@@ -101,7 +101,7 @@ export function createHeight(seed: string) {
   return (wx: number, wz: number) => {
     const x = wx + ox;
     const z = wz + oz;
-    const base = swell(x * 0.0025, z * 0.0025) * 10; // broad rises and basins
+    const base = swell(x * 0.0018, z * 0.0018) * 14; // broad rises and basins (dune bowls)
     const [r, t, s] = weights(wx, wz);
     const dunes = base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
     const floor = base - 1; // follow the broad terrain so banks stay shallow
@@ -143,5 +143,5 @@ export type Surface = 'sand' | 'soft';
 
 export function createSurface(seed: string) {
   const bed = createRiverbed(seed);
-  return (x: number, z: number): Surface => bed(x, z) > 0.5 ? 'soft' : 'sand';
+  return (x: number, z: number): Surface => bed(x, z) > 0.8 ? 'soft' : 'sand'; // floor and bank toe only; the banks themselves stay firm;
 }
