@@ -246,7 +246,7 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   // level 0..1: off by day, full at night.
   function headlights(level: number) {
     for (const beam of beams) beam.intensity = level * T.headlightIntensity;
-    for (const beam of drivingBeams) beam.intensity = level * T.headlightIntensity * (beam.angle < 0.2 ? 2 : 1);
+    for (const beam of drivingBeams) beam.intensity = level * T.headlightIntensity * (beam.name.startsWith('driving_long') ? 2 : 1);
     for (const lamp of headlamps) lamp.emissive.setRGB(level, level, level * 0.85);
   }
 

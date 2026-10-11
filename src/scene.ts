@@ -128,8 +128,8 @@ export function createScene() {
     return s.lamps;
   }
 
-  // Capture the existing sky once; its reflection gives paint and glass a readable horizon.
-  update(0.5, new THREE.Vector3());
+  // Capture the starting sky once (dt 0: light it without advancing the clock); its reflection gives paint and glass a readable horizon.
+  update(0, new THREE.Vector3());
   const pmrem = new THREE.PMREMGenerator(renderer);
   scene.environment = pmrem.fromScene(scene, 0.04, 0.1, 1000, { size: 128 }).texture;
   pmrem.dispose();

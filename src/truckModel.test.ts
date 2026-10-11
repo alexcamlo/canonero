@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { readFileSync } from 'node:fs';
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
@@ -72,24 +73,25 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
       truck.render(1);
     }
     expect(new THREE.Vector3().copy(truck.body.translation()).distanceTo(start)).toBeGreaterThan(1);
-    const front = truck.mesh.getObjectByName('wheel_front_left');
-    const rear = truck.mesh.getObjectByName('wheel_rear_left');
-    expect(front.rotation.y).toBeCloseTo(truck.vehicle.wheelSteering(0));
+    const front = truck.mesh.getObjectByName('wheel_front_left')!;
+    const rear = truck.mesh.getObjectByName('wheel_rear_left')!;
+    expect(front.rotation.y).toBeCloseTo(truck.vehicle.wheelSteering(0)!);
     expect(rear.rotation.y).toBe(0);
     expect(Math.abs(front.rotation.z)).toBeGreaterThan(0.1);
     expect(front.scale.y).toBeLessThan(1);
     truck.headlights(1);
-    const lamps = truck.mesh.children.filter((child) => child instanceof THREE.SpotLight && !child.name.startsWith('driving_'));
-    const driving = truck.mesh.children.filter((child) => child instanceof THREE.SpotLight && child.name.startsWith('driving_'));
+    const spots = truck.mesh.children.filter((child) => child instanceof THREE.SpotLight);
+    const lamps = spots.filter((child) => !child.name.startsWith('driving_'));
+    const driving = spots.filter((child) => child.name.startsWith('driving_'));
     expect(driving).toHaveLength(4);
     expect(driving.every((lamp) => lamp.intensity > 0 && lamp.target.position.x > lamp.position.x)).toBe(true);
     expect(driving.filter((lamp) => lamp.angle < 0.2)).toHaveLength(2);
     truck.mesh.updateMatrixWorld(true);
     for (const side of ['left', 'right']) {
-      const mount = truck.mesh.getObjectByName(`driving_light_${side}`);
+      const mount = truck.mesh.getObjectByName(`driving_light_${side}`)!;
       const position = mount.getWorldPosition(new THREE.Vector3());
       for (const kind of ['flood', 'long']) {
-        const beam = truck.mesh.getObjectByName(`driving_${kind}_${side}`);
+        const beam = truck.mesh.getObjectByName(`driving_${kind}_${side}`)!;
         expect(beam.getWorldPosition(new THREE.Vector3()).distanceTo(position)).toBeCloseTo(0.05, 3);
         expect(beam.castShadow).toBe(false);
       }
@@ -97,8 +99,8 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
     expect(truck.mesh.getObjectByName('hood_scoop')).toBeDefined();
     expect(lamps).toHaveLength(2);
     expect(lamps.every((lamp) => lamp.intensity === TRUCK.headlightIntensity)).toBe(true);
-    const lenses = [];
-    truck.mesh.traverse((node) => { if (node.isMesh && node.material.name === 'headlamp') lenses.push(node.material); });
+    const lenses: THREE.MeshStandardMaterial[] = [];
+    truck.mesh.traverse((node) => { if (node instanceof THREE.Mesh && node.material.name === 'headlamp') lenses.push(node.material); });
     expect(lenses.length).toBeGreaterThan(0);
     expect(lenses.every((material) => material.emissive.r === 1)).toBe(true);
     truck.headlights(0);
@@ -113,7 +115,7 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
 test('glazing covers upper and lower window edges on both sides, front and rear', async () => {
   const model = await readModel();
   model.updateMatrixWorld(true);
-  const glass = model.getObjectByName('glass');
+  const glass = model.getObjectByName('glass')!;
   const ray = new THREE.Raycaster();
   for (const side of [-1, 1]) {
     for (const [x, y] of [[-1.5, 1.90], [-0.5, 1.85], [0.3, 1.76], [-1.5, 1.45], [-0.5, 1.40], [0.3, 1.38]]) {
