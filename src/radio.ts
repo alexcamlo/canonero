@@ -1,7 +1,10 @@
 const TRACKS = [
-  { file: 'countryside', title: 'Countryside' },
-  { file: 'oceanside', title: 'Oceanside' },
-  { file: 'florist', title: 'Florist' },
+  { file: 'jungle', title: 'Chill Jungle', artist: 'Alex McCulloch' },
+  { file: 'stretch', title: 'Empty Stretch', artist: 'Zane Little' },
+  { file: 'hypnotic', title: 'Hypnotic Chill', artist: 'cynicmusic' },
+  { file: 'desert', title: 'Desert Loop', artist: 'iamoneabe' },
+  { file: 'jungle2', title: 'Chill Jungle 2', artist: 'Alex McCulloch' },
+  { file: 'radio', title: 'Old Broken Radio', artist: 'Gichco' },
 ];
 
 export const nextTrackIndex = (index: number) => (index + 1) % TRACKS.length;
@@ -46,7 +49,7 @@ export function createRadio() {
     const attempt = ++request;
     on = true;
     button.setAttribute('aria-pressed', 'true');
-    show(`${track.title} · TAD`);
+    show(`${track.title} · ${track.artist}`);
     // Keep play in the gesture handler; ignore rejections from an earlier skip/pause.
     void audio.play().catch(() => {
       if (attempt === request) stop('Radio unavailable — tap to retry');
