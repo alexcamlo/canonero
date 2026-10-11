@@ -8,8 +8,9 @@ export const AUDIO = {
   engineRate: 2.1,
   windGain: 0.45,
   windSpeed: 30, // m/s for full wind
-  sandGain: 0.45,
+  sandGain: 0.3,
   sandSpeed: 10, // m/s for full crunch
+  sandCutoff: 500, // Hz; the pour recording's grains crackle like twigs above this, below it they hiss
   looseBoost: 0.5,
 };
 
@@ -26,7 +27,7 @@ export function audioMix(s: State) {
     windGain: AUDIO.windGain * wind * wind,
     windRate: 0.9 + 0.25 * wind,
     sandGain: AUDIO.sandGain * sand * (1 + AUDIO.looseBoost * clamp(s.sinkage)),
-    sandRate: 0.85 + 0.35 * sand,
+    sandRate: 0.8 + 0.15 * sand,
   };
 }
 
@@ -60,13 +61,15 @@ export function createAudio() {
         if (!response.ok) throw new Error(`${name}: HTTP ${response.status}`);
         return ctx.decodeAudioData(await response.arrayBuffer());
       }));
-      for (const buffer of buffers) {
+      for (const [i, buffer] of buffers.entries()) {
         const source = ctx.createBufferSource();
         const gain = ctx.createGain();
         source.buffer = buffer;
         source.loop = true;
         gain.gain.value = 0;
-        source.connect(gain).connect(master!);
+        if (i === 2) source.connect(new BiquadFilterNode(ctx, { type: 'lowpass', frequency: AUDIO.sandCutoff })).connect(gain);
+        else source.connect(gain);
+        gain.connect(master!);
         source.start();
         loops.push({ source, gain });
       }
