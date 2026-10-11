@@ -27,12 +27,13 @@ const { renderer, scene, camera, update } = createScene();
 const seed = seedFromUrl();
 const height = createHeight(seed);
 const softness = createSoftness(height);
-const chunks = createChunks(world, scene, height, createGroundColor(seed));
+const groundColor = createGroundColor(seed);
+const chunks = createChunks(world, scene, height, groundColor);
 chunks.update(new THREE.Vector3(), Infinity);
 
 const spawn = findFlatSpot(height, softness, 0, 0, 150, 10); // the origin can sit on a mega-dune's face
 const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), softness, model);
-const tracks = createTracks(scene, truck);
+const tracks = createTracks(scene, truck, height, softness, groundColor);
 const hud = createHud();
 createTouchControls();
 createRadio();
@@ -68,8 +69,9 @@ renderer.setAnimationLoop((now) => {
 
   truck.render(acc / STEP);
   fwd.set(1, 0, 0).applyQuaternion(truck.body.rotation()); // truck forward is +x
-  hud.update(truck.state(), fwd.x, fwd.z, dt);
-  tracks.update(now / 1000);
+  const state = truck.state();
+  hud.update(state, fwd.x, fwd.z, dt);
+  tracks.update(now / 1000, state.sinkage);
   chunks.update(truck.mesh.position);
   if (hood) updateHoodCamera(camera, truck.mesh, dt);
   else updateChaseCamera(camera, truck.mesh, dt, height);
