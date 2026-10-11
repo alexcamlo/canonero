@@ -1,6 +1,6 @@
 export const GEARBOX = {
   gears: 4,
-  ratios: [2.7, 2.16, 1.8, 1.53], // fixed short gearing: the former low-range drive multipliers
+  ratios: [2.0, 1.3, 0.95, 0.75], // drive force per gear: first stays strong enough to pull off soft sand (below ~1.8 it can't), upper gears soft so it isn't a sports car
   topSpeed: 30, // m/s, before the sand-tyre speed limit (~82 km/h on sand tyres)
   idleRpm: 0.2, // rpm is 0..1
   downshiftGap: 1.5, // m/s below the gear boundary before dropping back, so gears don't hunt
