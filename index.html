@@ -8,13 +8,22 @@
     <style>
       html, body { margin: 0; height: 100%; overflow: hidden; background: #f8c487; }
       canvas { display: block; }
-      #hud, #hud-warning { position: fixed; font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.08em; color: #fff4e0; text-shadow: 0 1px 6px rgba(80, 40, 10, 0.5); pointer-events: none; transition: opacity 1s; }
+      #hud, #hud-warning, #radio-track { position: fixed; font: 600 14px/1 system-ui, sans-serif; letter-spacing: 0.08em; color: #fff4e0; text-shadow: 0 1px 6px rgba(80, 40, 10, 0.5); pointer-events: none; transition: opacity 1s; }
       #hud { top: 16px; left: 16px; display: flex; gap: 20px; }
       #hud-warning { top: 16px; right: 16px; opacity: 0; }
       body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
       body:has(#touch) #hud-warning { top: 64px; } /* below the Flip and View buttons */
       #touch button { position: fixed; top: calc(12px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); width: 60px; height: 40px; padding: 0; border: 0; border-radius: 12px; background: rgba(255, 244, 224, 0.28); color: #fff4e0; font: 600 13px system-ui, sans-serif; text-shadow: 0 1px 4px rgba(80, 40, 10, 0.5); touch-action: none; -webkit-tap-highlight-color: transparent; cursor: pointer; }
       #touch button + button { right: calc(80px + env(safe-area-inset-right)); } /* View, left of Flip */
+      #touch #radio { right: calc(148px + env(safe-area-inset-right)); }
+      #touch #radio[aria-pressed="true"] { background: rgba(255, 244, 224, 0.5); }
+      #radio-track { top: calc(92px + env(safe-area-inset-top)); right: calc(12px + env(safe-area-inset-right)); max-width: calc(100% - 24px); line-height: 1.4; text-align: right; opacity: 0; }
+      @media (max-width: 600px) {
+        body:has(#touch) #hud { top: calc(64px + env(safe-area-inset-top)); }
+        body:has(#touch) #hud-warning { top: calc(92px + env(safe-area-inset-top)); }
+        #radio-track { top: calc(120px + env(safe-area-inset-top)); }
+      }
+      @media (prefers-reduced-motion: reduce) { #radio-track { transition: none; } }
       #touch button:active { background: rgba(255, 244, 224, 0.5); }
       #touch .ring { position: fixed; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 244, 224, 0.5); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       #touch .knob { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 244, 224, 0.5); }
