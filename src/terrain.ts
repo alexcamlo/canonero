@@ -21,11 +21,14 @@ const smooth = (t: number) => {
 export function regionWeights(seed: string) {
   const noise = createNoise2D(prng(`${seed}:regions`));
   const frequency = 0.0003;
-  return (x: number, z: number): [number, number, number] => {
+  return (x: number, z: number, out: [number, number, number] = [0, 0, 0]) => {
     const n = noise(x * frequency + 123.4, z * frequency + 456.7);
     const rolling = 1 - smooth((n + 0.45) / 0.35);
     const star = smooth((n - 0.1) / 0.35);
-    return [rolling, 1 - rolling - star, star];
+    out[0] = rolling;
+    out[1] = 1 - rolling - star;
+    out[2] = star;
+    return out;
   };
 }
 
@@ -36,12 +39,14 @@ const LOOSE = { tone: [0.97, 0.84, 0.66], mix: 0.3 }; // loose sand reads paler,
 // Ground colour at world (x, z): region palettes blended by weight, paled by softness so soft sand can be read.
 export function createGroundColor(seed: string) {
   const weights = regionWeights(seed);
-  return (x: number, z: number, soft: number): [number, number, number] => {
-    const w = weights(x, z);
-    return [0, 1, 2].map((c) => {
+  const w: [number, number, number] = [0, 0, 0];
+  return (x: number, z: number, soft: number, out: [number, number, number] = [0, 0, 0]) => {
+    weights(x, z, w);
+    for (let c = 0; c < 3; c++) {
       const sand = w[0] * GROUND[0][c] + w[1] * GROUND[1][c] + w[2] * GROUND[2][c];
-      return sand + (LOOSE.tone[c] - sand) * LOOSE.mix * soft;
-    }) as [number, number, number];
+      out[c] = sand + (LOOSE.tone[c] - sand) * LOOSE.mix * soft;
+    }
+    return out;
   };
 }
 
@@ -62,6 +67,7 @@ export function createHeight(seed: string) {
   const ox = random() * 1e4; // simplex is 0 at the origin for every seed, so shift each desert
   const oz = random() * 1e4;
   const weights = regionWeights(seed);
+  const region: [number, number, number] = [0, 0, 0];
   const rolling = (x: number, z: number) => swell(x * 0.0033, z * 0.0033) * dunes.rollingAmplitude;
   const transverse = (x: number, z: number) => {
     const phase = x * dunes.ridgeFrequency + warp(x * 0.0005, z * 0.004) * 0.4;
@@ -89,7 +95,7 @@ export function createHeight(seed: string) {
     const x = wx + ox;
     const z = wz + oz;
     const base = swell(x * 0.0018, z * 0.0018) * 14; // broad rises and basins (dune bowls)
-    const [r, t, s] = weights(wx, wz);
+    const [r, t, s] = weights(wx, wz, region);
     return base + r * rolling(x, z) + t * transverse(x, z) + s * star(x, z);
   };
 }

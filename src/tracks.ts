@@ -1,91 +1,121 @@
 import * as THREE from 'three';
+import type { createGroundColor, createHeight, createSoftness } from './terrain';
 import type { createTruck } from './truck';
 
 const TRACKS = {
   segmentsPerWheel: 1024,
   spacing: 0.3, // m
-  width: 0.3, // m, about the tyre's footprint
-  tread: 3.5, // tread bars per metre
-  lift: 0.035, // m above the contact point
+  width: 0.46, // m, footprint plus displaced shoulders
+  lift: 0.015, // m above the contact plane
   fade: 15, // seconds
 };
 
-export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof createTruck>) {
+export function createTracks(
+  scene: THREE.Scene,
+  truck: ReturnType<typeof createTruck>,
+  height: ReturnType<typeof createHeight>,
+  softness: ReturnType<typeof createSoftness>,
+  groundColor: ReturnType<typeof createGroundColor>,
+) {
   const wheelCount = truck.vehicle.numWheels();
-  const positions = new Float32Array(wheelCount * TRACKS.segmentsPerWheel * 6 * 3);
-  const spawn = new Float32Array(wheelCount * TRACKS.segmentsPerWheel * 6);
-  spawn.fill(-1e9);
-  const grooves = new Float32Array(wheelCount * TRACKS.segmentsPerWheel * 6 * 2); // across (-1..1), along (m)
+  const count = wheelCount * TRACKS.segmentsPerWheel * 6;
   const geometry = new THREE.BufferGeometry();
-  const position = new THREE.BufferAttribute(positions, 3).setUsage(THREE.DynamicDrawUsage);
-  const born = new THREE.BufferAttribute(spawn, 1).setUsage(THREE.DynamicDrawUsage);
-  geometry.setAttribute('position', position);
-  const groove = new THREE.BufferAttribute(grooves, 2).setUsage(THREE.DynamicDrawUsage);
-  geometry.setAttribute('born', born);
-  geometry.setAttribute('groove', groove);
+  function attribute(name: string, size: number) {
+    const a = new THREE.BufferAttribute(new Float32Array(count * size), size).setUsage(THREE.DynamicDrawUsage);
+    geometry.setAttribute(name, a);
+    return a;
+  }
+  const position = attribute('position', 3);
+  const normal = attribute('normal', 3);
+  const color = attribute('color', 3);
+  const born = attribute('born', 1);
+  born.array.fill(-1e9);
+  const groove = attribute('groove', 2); // across (-1..1), along (m)
+  const across = attribute('across', 3);
+  const depth = attribute('depth', 1);
+  const attributes = [position, normal, color, born, groove, across, depth];
+  const uTime = { value: 0 };
 
-  const material = new THREE.ShaderMaterial({
+  const material = new THREE.MeshLambertMaterial({
+    vertexColors: true,
     transparent: true,
-    blending: THREE.MultiplyBlending, // darkens whatever light is on the sand, so tracks don't glow at night
-    premultipliedAlpha: true,
     depthWrite: false,
     side: THREE.DoubleSide,
+    forceSinglePass: true,
     polygonOffset: true,
     polygonOffsetFactor: -1,
-    uniforms: { uTime: { value: 0 } },
-    vertexShader: `
-      attribute float born;
-      attribute vec2 groove;
-      varying float vBorn;
-      varying vec2 vGroove;
-      void main() {
-        vBorn = born;
-        vGroove = groove;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-      }`,
-    fragmentShader: `
-      uniform float uTime;
-      varying float vBorn;
-      varying vec2 vGroove;
-      void main() {
-        float alpha = clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
-        // A pressed-in rut, not paint: faint floor, shadowed walls at both edges, light tread bars.
-        float wall = smoothstep(0.55, 0.95, abs(vGroove.x)) * (1.0 - smoothstep(0.95, 1.0, abs(vGroove.x)));
-        float tread = step(0.6, fract(vGroove.y * ${TRACKS.tread.toFixed(1)})) * (1.0 - wall);
-        float dark = 0.04 + 0.16 * wall + 0.04 * tread;
-        gl_FragColor = vec4(vec3(1.0 - dark * alpha), 1.0); // multiplier on the sand: fades to 1 (no change), never black
-      }`,
   });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = uTime;
+    const varying = `
+      varying float vBorn, vDepth;
+      varying vec2 vGroove;
+      varying vec3 vAcross;
+    `;
+    shader.vertexShader = `
+      attribute float born, depth;
+      attribute vec2 groove;
+      attribute vec3 across;
+      ${varying}
+    ` + shader.vertexShader;
+    shader.vertexShader = shader.vertexShader.replace('#include <begin_vertex>', `
+      #include <begin_vertex>
+      vBorn = born;
+      vDepth = depth;
+      vGroove = groove;
+      vAcross = normalMatrix * across;
+    `);
+    shader.fragmentShader = `uniform float uTime;\n${varying}` + shader.fragmentShader;
+    shader.fragmentShader = shader.fragmentShader.replace('#include <color_fragment>', `
+      #include <color_fragment>
+      float age = clamp(1.0 - (uTime - vBorn) / ${TRACKS.fade.toFixed(1)}, 0.0, 1.0);
+      float irregular = (sin(vGroove.y * 7.3 + sin(vGroove.y * 2.1)) + 0.4 * sin(vGroove.y * 19.7)) * 0.025;
+      float x = abs(vGroove.x + irregular);
+      float edge = 1.0 - smoothstep(0.86, 1.0, x);
+      diffuseColor.a *= age * edge * smoothstep(0.0, 0.3, vDepth);
+    `);
+    // shortcut: relief is shading only; deform terrain if ruts must affect driving or silhouettes.
+    shader.fragmentShader = shader.fragmentShader.replace('#include <normal_fragment_begin>', `
+      #include <normal_fragment_begin>
+      float wall = smoothstep(0.28, 0.52, x) * (1.0 - smoothstep(0.52, 0.72, x));
+      float berm = smoothstep(0.65, 0.8, x) * (1.0 - smoothstep(0.8, 1.0, x));
+      float detail = 1.0 - smoothstep(0.15, 0.7, fwidth(vGroove.x));
+      float slope = sign(vGroove.x) * (0.85 * wall - 0.5 * berm) * vDepth * detail;
+      normal = normalize(vNormal - normalize(vAcross) * slope);
+    `);
+  };
   const mesh = new THREE.Mesh(geometry, material);
+  mesh.receiveShadow = true;
   mesh.frustumCulled = false; // ring slots can be far apart, so one bounds check cannot cull them safely
   scene.add(mesh);
 
-  const last = Array.from({ length: wheelCount }, () => new THREE.Vector3());
-  const lastSide = Array.from({ length: wheelCount }, () => new THREE.Vector3());
+  const footprint = () => ({
+    point: new THREE.Vector3(), side: new THREE.Vector3(), normal: new THREE.Vector3(),
+    color: new THREE.Color(), depth: 0, width: 0, along: 0,
+  });
+  const last = Array.from({ length: wheelCount }, footprint);
+  const current = footprint();
   const touching = Array.from({ length: wheelCount }, () => false);
   const next = new Uint16Array(wheelCount);
-  const travelled = new Float32Array(wheelCount); // m along each wheel's track, for the tread pattern
   const point = new THREE.Vector3();
   const side = new THREE.Vector3();
   const rotation = new THREE.Quaternion();
+  const rgb: [number, number, number] = [0, 0, 0];
 
-  function write(vertex: number, p: THREE.Vector3, across: THREE.Vector3, sign: number, time: number, along: number) {
-    const offset = vertex * 3;
-    const half = TRACKS.width / 2;
-    positions[offset] = p.x + across.x * half * sign;
-    positions[offset + 1] = p.y + TRACKS.lift;
-    positions[offset + 2] = p.z + across.z * half * sign;
-    spawn[vertex] = time;
-    grooves[vertex * 2] = sign;
-    grooves[vertex * 2 + 1] = along;
+  function write(vertex: number, p: typeof current, sign: number, time: number) {
+    position.setXYZ(vertex, p.point.x + p.side.x * p.width * sign, p.point.y + p.side.y * p.width * sign + TRACKS.lift, p.point.z + p.side.z * p.width * sign);
+    normal.setXYZ(vertex, p.normal.x, p.normal.y, p.normal.z);
+    color.setXYZ(vertex, p.color.r, p.color.g, p.color.b);
+    born.setX(vertex, time);
+    groove.setXY(vertex, sign, p.along);
+    across.setXYZ(vertex, p.side.x, p.side.y, p.side.z);
+    depth.setX(vertex, p.depth);
   }
 
-  function update(time: number) {
-    material.uniforms.uTime.value = time;
+  function update(time: number, sinkage: readonly number[]) {
+    uTime.value = time;
     rotation.copy(truck.body.rotation());
-    side.set(0, 0, 1).applyQuaternion(rotation);
-    side.y = 0;
-    side.normalize();
+    side.set(0, 0, 1).applyQuaternion(rotation).setY(0).normalize();
 
     for (let i = 0; i < wheelCount; i++) {
       const contact = truck.vehicle.wheelIsInContact(i) && truck.vehicle.wheelContactPoint(i);
@@ -94,32 +124,43 @@ export function createTracks(scene: THREE.Scene, truck: ReturnType<typeof create
         continue;
       }
       point.copy(contact);
-      if (!touching[i]) {
-        last[i].copy(point);
-        lastSide[i].copy(side);
-        touching[i] = true;
-        continue;
-      }
-      if (point.distanceToSquared(last[i]) < TRACKS.spacing ** 2) continue;
+      const previous = last[i];
+      const distance = point.distanceTo(previous.point);
+      if (touching[i] && distance < TRACKS.spacing) continue;
+      const soft = softness(point.x, point.z);
+      current.point.copy(point);
+      current.normal.set(height(point.x - 2, point.z) - height(point.x + 2, point.z), 4, height(point.x, point.z - 2) - height(point.x, point.z + 2)).normalize();
+      const contactNormal = truck.vehicle.wheelContactNormal(i)!;
+      current.side.copy(side);
+      current.side.y = -(contactNormal.x * side.x + contactNormal.z * side.z) / contactNormal.y;
+      groundColor(point.x, point.z, soft, rgb);
+      current.color.setRGB(rgb[0], rgb[1], rgb[2], THREE.SRGBColorSpace);
+      current.depth = 0.08 + soft * (0.55 + 0.65 * sinkage[i]) * (0.9 + 0.1 * Math.sin(point.x * 2.3 + Math.sin(point.z * 1.7)));
+      current.width = TRACKS.width / 2 * (1 + 0.025 * Math.sin(point.x * 3.7 + point.z * 2.3) + 0.015 * Math.sin(point.x * 8.1 - point.z));
+      current.along = touching[i] ? previous.along + distance : 0;
 
-      const slot = (i * TRACKS.segmentsPerWheel + next[i]) * 6;
-      const from = travelled[i];
-      const to = (travelled[i] += point.distanceTo(last[i]));
-      write(slot, last[i], lastSide[i], -1, time, from);
-      write(slot + 1, last[i], lastSide[i], 1, time, from);
-      write(slot + 2, point, side, -1, time, to);
-      write(slot + 3, last[i], lastSide[i], 1, time, from);
-      write(slot + 4, point, side, 1, time, to);
-      write(slot + 5, point, side, -1, time, to);
-      position.addUpdateRange(slot * 3, 18);
-      born.addUpdateRange(slot, 6);
-      groove.addUpdateRange(slot * 2, 12);
-      position.needsUpdate = true;
-      born.needsUpdate = true;
-      groove.needsUpdate = true;
-      next[i] = (next[i] + 1) % TRACKS.segmentsPerWheel;
-      last[i].copy(point);
-      lastSide[i].copy(side);
+      if (touching[i]) {
+        const slot = (i * TRACKS.segmentsPerWheel + next[i]) * 6;
+        write(slot, previous, -1, time);
+        write(slot + 1, previous, 1, time);
+        write(slot + 2, current, -1, time);
+        write(slot + 3, previous, 1, time);
+        write(slot + 4, current, 1, time);
+        write(slot + 5, current, -1, time);
+        for (const a of attributes) {
+          a.addUpdateRange(slot * a.itemSize, 6 * a.itemSize);
+          a.needsUpdate = true;
+        }
+        next[i] = (next[i] + 1) % TRACKS.segmentsPerWheel;
+      }
+      previous.point.copy(current.point);
+      previous.side.copy(current.side);
+      previous.normal.copy(current.normal);
+      previous.color.copy(current.color);
+      previous.depth = current.depth;
+      previous.width = current.width;
+      previous.along = current.along;
+      touching[i] = true;
     }
   }
 
