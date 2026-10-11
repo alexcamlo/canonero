@@ -45,7 +45,7 @@ export const TRUCK = {
 
 const T = TRUCK;
 
-export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THREE.Vector3, softnessAt: (x: number, z: number) => number) {
+export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THREE.Vector3, softnessAt: (x: number, z: number) => number, model: THREE.Group) {
   const body = world.createRigidBody(
     RAPIER.RigidBodyDesc.dynamic().setTranslation(start.x, start.y, start.z).setCanSleep(false),
   );
@@ -84,53 +84,16 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
 
   // Body and physics-driven wheels share the interpolated chassis pose.
   const mesh = new THREE.Group();
-  mesh.add(createTruckModel());
-  const tyre = new THREE.MeshLambertMaterial({ color: 0x252724 });
-  const rim = new THREE.MeshLambertMaterial({ color: 0x2c363b });
-  const pinstripe = new THREE.MeshLambertMaterial({ color: 0xe2c658 });
-  const wheelGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.95, T.wheelRadius * 0.95, 0.34, 16).rotateX(Math.PI / 2);
-  const rimGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.55, T.wheelRadius * 0.55, 0.35, 16).rotateX(Math.PI / 2);
-  const stripeGeo = new THREE.RingGeometry(T.wheelRadius * 0.53, T.wheelRadius * 0.55, 24);
-  const ventGeo = new THREE.ShapeGeometry(new THREE.Shape(Array.from({ length: 6 }, (_, i) =>
-    new THREE.Vector2(T.wheelRadius * 0.08 * Math.cos(i * Math.PI / 3), T.wheelRadius * 0.11 * Math.sin(i * Math.PI / 3)),
-  )));
-  // Leave room for the tread corners within the physics radius.
-  const treadGeo = new THREE.BoxGeometry(T.wheelRadius * 0.27, T.wheelRadius * 0.085, 0.175);
-  const hubGeo = new THREE.CylinderGeometry(T.wheelRadius * 0.16, T.wheelRadius * 0.16, 0.375, 8).rotateX(Math.PI / 2);
-  const wheels = wheelMounts.map(([x, z]) => {
-    const w = new THREE.Mesh(wheelGeo, tyre);
-    w.add(new THREE.Mesh(rimGeo, rim));
-    const stripe = new THREE.Mesh(stripeGeo, pinstripe);
-    stripe.position.z = Math.sign(z) * 0.179;
-    stripe.rotation.y = z > 0 ? 0 : Math.PI;
-    w.add(stripe);
-    w.add(new THREE.Mesh(hubGeo, tyre));
-    for (let i = 0; i < 6; i++) {
-      const angle = i * Math.PI / 3;
-      const vent = new THREE.Mesh(ventGeo, tyre);
-      vent.position.set(Math.cos(angle) * T.wheelRadius * 0.37, Math.sin(angle) * T.wheelRadius * 0.37, Math.sign(z) * 0.181);
-      vent.rotation.set(0, z > 0 ? 0 : Math.PI, Math.sign(z) * (angle - Math.PI / 2));
-      w.add(vent);
-    }
-    for (const row of [-1, 1]) {
-      for (let i = 0; i < 10; i++) {
-        const angle = (i + (row > 0 ? 0.5 : 0)) * Math.PI / 5;
-        const tread = new THREE.Mesh(treadGeo, tyre);
-        tread.position.set(Math.sin(angle) * T.wheelRadius * 0.945, Math.cos(angle) * T.wheelRadius * 0.945, row * 0.0875);
-        tread.rotation.z = -angle;
-        w.add(tread);
-      }
-    }
-    w.position.set(x, T.wheelY, z);
-    mesh.add(w);
-    return w;
+  const { body: visualBody, wheels } = createTruckModel(model, T);
+  mesh.add(visualBody, ...wheels);
+  const headlamps = new Set<THREE.MeshStandardMaterial>();
+  mesh.traverse((o) => {
+    o.castShadow = true;
+    if (o instanceof THREE.Mesh && o.material instanceof THREE.MeshStandardMaterial && o.material.name === 'headlamp') headlamps.add(o.material);
   });
-  mesh.traverse((o) => (o.castShadow = true));
   scene.add(mesh);
 
   // Headlights, added after the shadow pass above: the sun/moon stays the only shadow caster.
-  let headlamp!: THREE.MeshLambertMaterial;
-  mesh.traverse((o) => { if (o instanceof THREE.Mesh && o.material.name === 'headlamp') headlamp = o.material; });
   const beams = [-0.6, 0.6].map((z) => {
     const beam = new THREE.SpotLight(0xfff0d8, 0, 0, T.headlightAngle, 0.5, 1);
     beam.position.set(2.3, 0.1, z);
@@ -138,6 +101,21 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     mesh.add(beam, beam.target);
     return beam;
   });
+
+  const drivingBeams: THREE.SpotLight[] = [];
+  for (const side of ['left', 'right']) {
+    const mount = mesh.getObjectByName(`driving_light_${side}`);
+    if (!mount) throw new Error(`Truck model is missing driving_light_${side}`);
+    for (const [kind, angle, reach] of [['flood', 0.65, 35], ['long', 0.16, 140]] as const) {
+      const beam = new THREE.SpotLight(0xfff8e8, 0, reach, angle, 0.6, 1);
+      beam.name = `driving_${kind}_${side}`;
+      mesh.worldToLocal(mount.getWorldPosition(beam.position));
+      beam.position.x += 0.05;
+      beam.target.position.copy(beam.position).add(new THREE.Vector3(reach, -1.2, 0));
+      mesh.add(beam, beam.target);
+      drivingBeams.push(beam);
+    }
+  }
 
   // Pose before the latest physics step, so render() can interpolate between it and the current pose.
   const prevPos = new THREE.Vector3().copy(start);
@@ -268,7 +246,8 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   // level 0..1: off by day, full at night.
   function headlights(level: number) {
     for (const beam of beams) beam.intensity = level * T.headlightIntensity;
-    headlamp.emissive.setRGB(level, level, level * 0.85);
+    for (const beam of drivingBeams) beam.intensity = level * T.headlightIntensity * (beam.angle < 0.2 ? 2 : 1);
+    for (const lamp of headlamps) lamp.emissive.setRGB(level, level, level * 0.85);
   }
 
   function toggleRange() {

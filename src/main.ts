@@ -1,5 +1,6 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { setHoodView, updateChaseCamera, updateHoodCamera } from './camera';
 import { createChunks } from './chunks';
 import { createHud } from './hud';
@@ -14,6 +15,10 @@ import { createTruck } from './truck';
 const STEP = 1 / 60;
 
 await RAPIER.init();
+const { scene: model } = await new GLTFLoader().loadAsync(new URL('models/prado-j90.glb', document.baseURI).href).catch((error) => {
+  document.body.textContent = 'Could not load the truck model. Reload to try again.';
+  throw error;
+});
 const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
 world.timestep = STEP;
 
@@ -26,7 +31,7 @@ const chunks = createChunks(world, scene, height, createGroundColor(seed));
 chunks.update(new THREE.Vector3(), Infinity);
 
 const spawn = findFlatSpot(height, softness, 0, 0, 150, 10); // the origin can sit on a mega-dune's face
-const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), softness);
+const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.x, spawn.z) + 1.5, spawn.z), softness, model);
 const tracks = createTracks(scene, truck);
 const hud = createHud();
 createTouchControls();

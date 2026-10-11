@@ -121,11 +121,18 @@ export function createScene() {
     uniforms.zenith.value.copy(s.zenith);
     uniforms.sunDir.value.copy(s.sunDir);
     uniforms.stars.value = s.stars;
+    scene.environmentIntensity = THREE.MathUtils.lerp(0.12, 0.8, 1 - s.lamps);
     sky.position.copy(camera.position);
     sun.target.position.copy(focus);
     sun.position.copy(focus).addScaledVector(s.lightDir, 100);
     return s.lamps;
   }
+
+  // Capture the existing sky once; its reflection gives paint and glass a readable horizon.
+  update(0.5, new THREE.Vector3());
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(scene, 0.04, 0.1, 1000, { size: 128 }).texture;
+  pmrem.dispose();
 
   return { renderer, scene, camera, update };
 }
