@@ -1,4 +1,4 @@
-// On-screen controls: Flip and View buttons everywhere (they fake the F and C keys, so the existing keydown
+// On-screen controls: Flip and View buttons everywhere (they fake the F and V keys, so the existing keydown
 // handlers work unchanged), plus, on touch screens, drag anywhere as an analogue stick
 // (up = gas, down = brake/reverse, sideways = steer). Range, air and reset stay keyboard/gamepad only.
 const RADIUS = 60; // px of drag for full throttle/steer
@@ -12,13 +12,13 @@ export function createTouchControls() {
   document.body.append(root);
 
   const flip = document.createElement('button');
-  flip.textContent = 'Flip';
+  flip.innerHTML = 'Flip <kbd>F</kbd>';
   flip.title = 'Flip upright (F)';
   flip.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF' })));
   const view = document.createElement('button');
-  view.textContent = 'View';
-  view.title = 'Chase / hood camera (C)';
-  view.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyC' })));
+  view.innerHTML = 'View <kbd>V</kbd>';
+  view.title = 'Chase / hood camera (V)';
+  view.addEventListener('pointerdown', () => dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyV' })));
   root.append(flip, view);
   if (!matchMedia('(pointer: coarse)').matches) return; // mouse/keyboard: no drag stick
 

@@ -24,6 +24,8 @@
         #radio-track { top: calc(120px + env(safe-area-inset-top)); }
       }
       @media (prefers-reduced-motion: reduce) { #radio-track { transition: none; } }
+      #touch kbd { font: inherit; opacity: 0.6; }
+      @media (pointer: coarse) { #touch kbd { display: none; } } /* no keyboard on phones */
       #touch button:active { background: rgba(255, 244, 224, 0.5); }
       #touch .ring { position: fixed; left: -60px; top: -60px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 244, 224, 0.5); opacity: 0; pointer-events: none; transition: opacity 0.2s; }
       #touch .knob { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 244, 224, 0.5); }

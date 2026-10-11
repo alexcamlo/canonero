@@ -39,7 +39,7 @@ const toggleView = () => setHoodView(camera, (hood = !hood));
 addEventListener('keydown', (e) => {
   if (e.repeat) return;
   if (e.code === 'KeyF') truck.flip();
-  if (e.code === 'KeyC') toggleView();
+  if (e.code === 'KeyV') toggleView();
   if (e.code === 'KeyT') {
     const p = truck.body.translation();
     const spot = findFlatSpot(height, softness, p.x, p.z);

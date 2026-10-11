@@ -12,7 +12,7 @@ export function createRadio() {
   audio.volume = 0.5;
   const button = document.createElement('button');
   button.id = 'radio';
-  button.textContent = 'Radio';
+  button.innerHTML = 'Radio <kbd>R</kbd>';
   button.title = 'Radio: cycle tracks, then off (R: on/off, N: next)';
   button.setAttribute('aria-pressed', 'false');
   document.querySelector('#touch')!.append(button);
