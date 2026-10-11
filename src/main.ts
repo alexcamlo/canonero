@@ -4,6 +4,7 @@ import { setHoodView, updateChaseCamera, updateHoodCamera } from './camera';
 import { createChunks } from './chunks';
 import { createHud } from './hud';
 import { readInput } from './input';
+import { createRadio } from './radio';
 import { createScene } from './scene';
 import { createGroundColor, createHeight, createSoftness, findFlatSpot, seedFromUrl } from './terrain';
 import { createTouchControls } from './touch';
@@ -29,6 +30,7 @@ const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.
 const tracks = createTracks(scene, truck);
 const hud = createHud();
 createTouchControls();
+createRadio();
 const fwd = new THREE.Vector3();
 camera.position.set(spawn.x - 10, height(spawn.x - 10, spawn.z) + 4, spawn.z);
 let hood = false;
