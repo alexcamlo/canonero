@@ -1,6 +1,5 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
-import { createAudio } from './audio';
 import { setHoodView, updateChaseCamera, updateHoodCamera } from './camera';
 import { createChunks } from './chunks';
 import { createHud } from './hud';
@@ -9,7 +8,7 @@ import { createScene } from './scene';
 import { createGroundColor, createHeight, createSoftness, findFlatSpot, seedFromUrl } from './terrain';
 import { createTouchControls } from './touch';
 import { createTracks } from './tracks';
-import { createTruck, TRUCK } from './truck';
+import { createTruck } from './truck';
 
 const STEP = 1 / 60;
 
@@ -30,7 +29,6 @@ const truck = createTruck(world, scene, new THREE.Vector3(spawn.x, height(spawn.
 const tracks = createTracks(scene, truck);
 const hud = createHud();
 createTouchControls();
-const audio = createAudio();
 const fwd = new THREE.Vector3();
 camera.position.set(spawn.x - 10, height(spawn.x - 10, spawn.z) + 4, spawn.z);
 let hood = false;
@@ -64,23 +62,7 @@ renderer.setAnimationLoop((now) => {
 
   truck.render(acc / STEP);
   fwd.set(1, 0, 0).applyQuaternion(truck.body.rotation()); // truck forward is +x
-  const state = truck.state();
-  hud.update(state, fwd.x, fwd.z, dt);
-  const speed = truck.vehicle.currentVehicleSpeed();
-  const throttle = speed > 0.5 ? input.throttle : speed < -0.5 ? input.brake : Math.max(input.throttle, input.brake);
-  let wheelSpeed = 0;
-  let sinkage = 0;
-  let contacts = 0;
-  for (let i = 0; i < 4; i++) {
-    const contact = truck.vehicle.wheelIsInContact(i) && truck.vehicle.wheelContactPoint(i);
-    if (!contact) continue;
-    const v = truck.body.velocityAtPoint(contact);
-    // Raycast wheels use the same slow-speed spin approximation as the sinkage model.
-    wheelSpeed += Math.hypot(v.x, v.z) + throttle * Math.max(0, TRUCK.spinSpeed - Math.abs(speed));
-    sinkage += state.sinkage[i];
-    contacts++;
-  }
-  audio.update({ rpm: state.rpm, throttle, speed, wheelSpeed: wheelSpeed / 4, sinkage: contacts ? sinkage / contacts : 0 });
+  hud.update(truck.state(), fwd.x, fwd.z, dt);
   tracks.update(now / 1000);
   chunks.update(truck.mesh.position);
   if (hood) updateHoodCamera(camera, truck.mesh, dt);
