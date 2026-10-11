@@ -1,7 +1,7 @@
 import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Input } from './input';
-import { GEARBOX, shift, type Range } from './gearbox';
+import { GEARBOX, shift } from './gearbox';
 import { drag, plough, SINKAGE, stepSinkage, traction } from './sinkage';
 import { createTruckModel } from './truckModel';
 
@@ -22,7 +22,7 @@ export const TRUCK = {
   maxSuspensionForce: 40000, // N per wheel
   frictionSlip: 2.2,
   sideFrictionStiffness: 0.9,
-  engineForce: 2000, // N per wheel, all four driven, before the gearbox multiplier; fades out (quadratically) to zero at the range's top speed
+  engineForce: 2000, // N per wheel, all four driven, before the gearbox multiplier; fades out (quadratically) to zero at top speed
   reverseSpeed: 8, // m/s
   brakeForce: 50, // per wheel
   idleBrake: 2, // engine braking when no pedal is pressed
@@ -32,9 +32,7 @@ export const TRUCK = {
   steerFalloff: 18, // m/s; steering lock halves at this speed
   sinkDepth: 0.2, // m, how far a fully sunk wheel sits into the sand (suspension rest shortens by the same)
   spinSpeed: 2, // m/s; below this, throttle counts as wheelspin (fully at standstill)
-  minPressure: 0.4, // fully aired down
-  airDownRate: 0.3, // pressure per second; letting air out is quick
-  compressorRate: 0.05, // pressure per second; a full re-inflate takes ~12 s
+  sandPressure: 0.4, // fixed normalized sand-tyre setup, not a real-world pressure prescription
   airedTopSpeed: 0.6, // top speed fraction at zero pressure
   airedSideGrip: 0.6, // cornering grip fraction at zero pressure
   airedSteerRate: 0.6, // steering speed fraction at zero pressure
@@ -123,11 +121,10 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   const currPos = new THREE.Vector3();
   const currRot = new THREE.Quaternion();
   let steer = 0;
-  let range: Range = 'high';
   let gear = 1;
   let rpm = 0;
   const sinkage = [0, 0, 0, 0];
-  let pressure = 1;
+  const pressure = T.sandPressure;
   let dir = 0; // last direction of travel, for rocking
   // Scratch objects: update() runs every physics step, so don't allocate there.
   const fwd = new THREE.Vector3();
@@ -144,16 +141,11 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     prevPos.copy(body.translation());
     prevRot.copy(body.rotation());
 
-    pressure = THREE.MathUtils.clamp(
-      pressure + ((input.compressor ? T.compressorRate : 0) - (input.airDown ? T.airDownRate : 0)) * dt,
-      T.minPressure,
-      1,
-    );
     const speed = vehicle.currentVehicleSpeed();
-    const box = shift(speed, range, gear);
+    const box = shift(speed, gear);
     gear = box.gear;
     rpm = box.rpm;
-    const topSpeed = GEARBOX.topSpeed[range] * THREE.MathUtils.lerp(T.airedTopSpeed, 1, pressure);
+    const topSpeed = GEARBOX.topSpeed * THREE.MathUtils.lerp(T.airedTopSpeed, 1, pressure);
     const force = T.engineForce * box.driveForceMultiplier;
     let engine = 0;
     let brake = input.throttle || input.brake ? 0 : T.idleBrake;
@@ -250,9 +242,5 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     for (const lamp of headlamps) lamp.emissive.setRGB(level, level, level * 0.85);
   }
 
-  function toggleRange() {
-    range = range === 'high' ? 'low' : 'high';
-  }
-
-  return { body, vehicle, mesh, update, render, flip, reset, toggleRange, headlights, state: () => ({ range, gear, rpm, pressure, sinkage: [...sinkage] }) };
+  return { body, vehicle, mesh, update, render, flip, reset, headlights, state: () => ({ gear, rpm, sinkage: [...sinkage] }) };
 }

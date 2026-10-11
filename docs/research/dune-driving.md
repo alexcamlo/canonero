@@ -2,6 +2,8 @@
 
 Short notes for issue #20. Only facts that change the game design. Most driving advice comes from 4x4 guides and forums. Treat it as consistent field experience, not measured data.
 
+For subsequent physics work, use [KDJ95 sand physics](kdj95-sand-physics.md) and its [vehicle reference](kdj95-reference.md). They qualify the momentum, softness, gearing and recovery assumptions below; this document preserves the rationale for the existing game mechanics, not validation of their realism.
+
 ## Where sand is soft or firm
 
 - **Windward (stoss) face: firm.** Wind pushes grains up this side by creep and saltation ([Wikipedia: Dune](https://en.wikipedia.org/wiki/Dune)). Every guide says this side is the firmer surface and the one to climb. It is also the gentle side, about 10–15° ([practicalmotoring](https://practicalmotoring.com.au/?p=52963), [UW angle of repose handout](https://sites.math.washington.edu/~aloveles/ProjectGallery/AngleOfRepose.pdf)). You can recognise it by its wind ripples, the "wavy lines" ([carnity dune tutorial](https://carnity.com/forums/topic/14600-dune-crossing-tutorial-and-techniques)).

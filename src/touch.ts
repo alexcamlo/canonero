@@ -1,6 +1,6 @@
 // On-screen controls: Flip and View buttons everywhere (they fake the F and V keys, so the existing keydown
 // handlers work unchanged), plus, on touch screens, drag anywhere as an analogue stick
-// (up = gas, down = brake/reverse, sideways = steer). Range, air and reset stay keyboard/gamepad only.
+// (up = gas, down = brake/reverse, sideways = steer). Reset stays keyboard only.
 const RADIUS = 60; // px of drag for full throttle/steer
 
 // Read by input.ts; x: -1 left .. 1 right, y: -1 up .. 1 down.

@@ -59,7 +59,6 @@ renderer.setAnimationLoop((now) => {
   last = now;
   acc += dt;
   const input = readInput();
-  if (input.rangeToggle) truck.toggleRange(); // once per frame, not per physics step
   if (input.viewToggle) toggleView();
   while (acc >= STEP) {
     truck.update(input, STEP);

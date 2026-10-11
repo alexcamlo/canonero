@@ -6,6 +6,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { expect, test } from 'vitest';
 import { createTruckModel } from './truckModel';
 import { createTruck, TRUCK } from './truck';
+import { CHUNK_CELLS, CHUNK_SIZE, chunkHeights } from './chunks';
 
 async function readModel() {
   const bytes = readFileSync(new URL('../public/models/prado-j90.glb', import.meta.url));
@@ -52,13 +53,13 @@ test('imported arches clear the tyre crown at full suspension compression', asyn
   }
 }, 120000);
 
-test('imported truck drives, steers, deflates and lights the road', async () => {
+test('imported truck drives, steers and lights the road with its fixed sand tyres', async () => {
   await RAPIER.init();
   const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
   try {
     world.createCollider(RAPIER.ColliderDesc.cuboid(100, 0.1, 100).setTranslation(0, -0.1, 0));
     const truck = createTruck(world, new THREE.Scene(), new THREE.Vector3(0, 1.5, 0), () => 0, await readModel());
-    const input = { throttle: 0, brake: 0, steer: 0, rangeToggle: false, viewToggle: false, airDown: false, compressor: false };
+    const input = { throttle: 0, brake: 0, steer: 0, viewToggle: false };
     for (let i = 0; i < 120; i++) {
       truck.update(input, 1 / 60);
       world.step();
@@ -66,7 +67,6 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
     const start = truck.body.translation();
     input.throttle = 1;
     input.steer = 0.5;
-    input.airDown = true;
     for (let i = 0; i < 120; i++) {
       truck.update(input, 1 / 60);
       world.step();
@@ -78,7 +78,7 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
     expect(front.rotation.y).toBeCloseTo(truck.vehicle.wheelSteering(0)!);
     expect(rear.rotation.y).toBe(0);
     expect(Math.abs(front.rotation.z)).toBeGreaterThan(0.1);
-    expect(front.scale.y).toBeLessThan(1);
+    expect(front.scale.y).toBeCloseTo(0.9 + 0.1 * TRUCK.sandPressure);
     truck.headlights(1);
     const spots = truck.mesh.children.filter((child) => child instanceof THREE.SpotLight);
     const lamps = spots.filter((child) => !child.name.startsWith('driving_'));
@@ -111,6 +111,49 @@ test('imported truck drives, steers, deflates and lights the road', async () => 
   }
 }, 120000);
 
+
+test('fixed sand setup starts, climbs and crosses a dune using only throttle', async () => {
+  await RAPIER.init();
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  const height = (x: number) => x <= 10 || x >= 100 ? 0
+    : x < 70 ? 5 - 5 * Math.cos(Math.PI * (x - 10) / 60)
+      : 5 + 5 * Math.cos(Math.PI * (x - 70) / 30);
+  try {
+    for (let cx = -1; cx <= 3; cx++) {
+      for (let cz = -1; cz <= 1; cz++) {
+        world.createCollider(RAPIER.ColliderDesc.heightfield(CHUNK_CELLS, CHUNK_CELLS,
+          chunkHeights(height, cx, cz), { x: CHUNK_SIZE, y: 1, z: CHUNK_SIZE })
+          .setTranslation(cx * CHUNK_SIZE, 0, cz * CHUNK_SIZE));
+      }
+    }
+    const truck = createTruck(world, new THREE.Scene(), new THREE.Vector3(0, 1.5, 0),
+      (x: number) => x > 70 && x < 100 ? 0.8 : 0.4, await readModel());
+    const input = { throttle: 0, brake: 0, steer: 0, viewToggle: false };
+    for (let i = 0; i < 300; i++) {
+      truck.update(input, 1 / 60);
+      world.step();
+    }
+    input.throttle = 0.75;
+    let peak = 0;
+    for (let i = 0; i < 35 * 60 && truck.body.translation().x < 120; i++) {
+      truck.update(input, 1 / 60);
+      world.step();
+      peak = Math.max(peak, truck.body.translation().y);
+    }
+    expect(peak).toBeGreaterThan(10);
+    expect(truck.body.translation().x).toBeGreaterThanOrEqual(120);
+    expect(new THREE.Vector3(0, 1, 0).applyQuaternion(truck.body.rotation()).y).toBeGreaterThan(0.9);
+    input.throttle = 0;
+    input.brake = 1;
+    for (let i = 0; i < 8 * 60; i++) {
+      truck.update(input, 1 / 60);
+      world.step();
+    }
+    expect(truck.vehicle.currentVehicleSpeed()).toBeLessThan(-0.5);
+  } finally {
+    world.free();
+  }
+}, 120000);
 
 test('glazing covers upper and lower window edges on both sides, front and rear', async () => {
   const model = await readModel();

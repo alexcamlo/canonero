@@ -1,5 +1,3 @@
-import type { Range } from './gearbox';
-
 export const HUD = {
   hold: 3, // seconds the indicators stay up after the last change
   sinkWarn: 0.3, // max wheel sinkage that raises the warning
@@ -16,7 +14,7 @@ export const compass = (fx: number, fz: number) => {
   return `${POINTS[Math.round(deg / 45) % 8]} ${Math.round(deg)}°`;
 };
 
-type State = { range: Range; pressure: number; sinkage: number[] };
+type State = { sinkage: number[] };
 
 export function createHud() {
   const make = (id: string) => {
@@ -29,12 +27,10 @@ export function createHud() {
   const warning = make('hud-warning');
   warning.setAttribute('aria-live', 'polite');
   const compassEl = document.createElement('span');
-  const tyresEl = document.createElement('span');
-  const rangeEl = document.createElement('span');
-  panel.append(compassEl, tyresEl, rangeEl);
+  panel.append(compassEl);
 
   let idle = HUD.hold;
-  let key = '';
+  let wasSinking: boolean | undefined;
   const set = (el: HTMLElement, text: string) => {
     if (el.textContent !== text) el.textContent = text; // don't touch the DOM every frame
   };
@@ -42,15 +38,10 @@ export function createHud() {
   return {
     // (fx, fz) is the truck's forward vector on the ground plane.
     update(s: State, fx: number, fz: number, dt: number) {
-      const tyres = `Tyres ${Math.round(s.pressure * 100)}%`;
-      const range = s.range === 'high' ? 'HI' : 'LO';
       const sinking = Math.max(...s.sinkage) > HUD.sinkWarn;
-      const next = tyres + range + sinking;
-      idle = hudIdle(idle, next !== key, dt);
-      key = next;
+      idle = hudIdle(idle, sinking !== wasSinking, dt);
+      wasSinking = sinking;
       set(compassEl, compass(fx, fz));
-      set(tyresEl, tyres);
-      set(rangeEl, range);
       set(warning, sinking ? 'Sinking — rock the truck or steer side to side' : '');
       panel.style.opacity = idle < HUD.hold ? '1' : '0';
       warning.style.opacity = sinking ? '1' : '0';

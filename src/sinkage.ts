@@ -27,7 +27,7 @@ export const SINKAGE = {
   ploughSkid: 0.85, // rear grip lost at full plough: weight leaves the locked rear wheels
   ploughSlope: 0.25, // sine of the descent where ploughing starts (~15°, full at twice that, ~30°)
   roll: 700, // N per wheel on fully soft sand at any sinkage: ~0.15 of the truck's weight, like loose sand
-  drag: 4500, // N per wheel at full sinkage, linear so shallow sinkage already holds the truck on a slope; above high-range first-gear force, just under low range
+  drag: 4500, // N per wheel at full sinkage, linear so shallow sinkage already holds the truck on a slope
 };
 
 const S = SINKAGE;
