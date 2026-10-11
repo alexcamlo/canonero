@@ -10,6 +10,32 @@ const samples = [
 ];
 
 describe('createHeight', () => {
+  test.each(['dune', 'erg', 'chebbi'])('%s transverse lee faces are at least twice as steep as windward faces', (seed) => {
+    const height = createHeight(seed);
+    const weights = regionWeights(seed);
+    const lee: number[] = [];
+    const windward: number[] = [];
+    for (let x = -2000; x <= 2000; x += 8) {
+      for (let z = -2000; z <= 2000; z += 8) {
+        if (weights(x, z)[1] <= 0.9) continue;
+        const gx = (height(x + 2, z) - height(x - 2, z)) / 4;
+        if (gx < 0) lee.push(-gx);
+        else windward.push(gx);
+      }
+    }
+    const percentile = (a: number[], p: number) => a.sort((a, b) => a - b)[Math.floor((a.length - 1) * p)];
+    expect(lee.length).toBeGreaterThan(1000);
+    expect(windward.length).toBeGreaterThan(1000);
+    const lee90 = percentile(lee, 0.9);
+    const windward90 = percentile(windward, 0.9);
+    expect(lee90).toBeGreaterThanOrEqual(0.55);
+    expect(lee90).toBeLessThanOrEqual(0.7);
+    expect(windward90).toBeGreaterThanOrEqual(0.18);
+    expect(windward90).toBeLessThanOrEqual(0.3);
+    expect(lee90 / windward90).toBeGreaterThanOrEqual(2);
+    expect(percentile(lee, 0.999)).toBeLessThanOrEqual(0.75);
+  });
+
   test('star regions have challenging slip faces at the 2 m grid spacing', () => {
     const height = createHeight('dune');
     const weights = regionWeights('dune');
@@ -81,6 +107,10 @@ describe('chunkHeights', () => {
 const plane = (gx: number, gz = 0) => softness(0, 2 * gx, -2 * gx, 2 * gz, -2 * gz);
 
 describe('softness', () => {
+  test('steep crosswind faces are looser than gentle crosswind slopes', () => {
+    expect(plane(0, 0.6)).toBeGreaterThan(plane(0, 0.2) + 0.25);
+  });
+
   test('lee faces (falling toward +x, downwind) are softer than windward faces', () => {
     expect(plane(-0.4)).toBeGreaterThan(plane(0.4) + 0.4);
     expect(plane(-0.15)).toBeGreaterThan(plane(0.15));

@@ -45,13 +45,14 @@ export function createGroundColor(seed: string) {
   };
 }
 
-// Ridge crest softening: smaller = crisper crest lines. Transverse dunes stay drivable; star dunes are meant to be hard.
-const CREST = { transverse: 0.013, star: 0.006 };
+// Ridge crest softening: smaller = crisper crest lines.
+const CREST = { transverse: 0.12, star: 0.006 };
 
 // Terrain height in metres at world (x, z); a pure function of the seed.
 export function createHeight(seed: string) {
   const dunes = {
     rollingAmplitude: 6, ridgeAmplitude: 18, starAmplitude: 32, starFrequency: 0.004,
+    ridgeFrequency: 0.0066, skew: 0.75, // long windward rise, short +x slip face near the angle of repose
     megaAmplitude: 175, megaFrequency: 0.00072, // Erg Chebbi-size star dunes (~150 m with the rest); same slope ratio as the small ones
   };
   const random = prng(seed);
@@ -63,11 +64,14 @@ export function createHeight(seed: string) {
   const weights = regionWeights(seed);
   const rolling = (x: number, z: number) => swell(x * 0.0033, z * 0.0033) * dunes.rollingAmplitude;
   const transverse = (x: number, z: number) => {
-    // One wind along +x: stretch every crest along z, with only a light warp.
-    const w = warp(x * 0.004, z * 0.004) * 0.2;
-    const n = ridge(x * 0.0053 + w, z * 0.001);
-    const r = 1 - Math.sqrt(n * n + CREST.transverse);
-    return r * r * dunes.ridgeAmplitude;
+    const phase = x * dunes.ridgeFrequency + warp(x * 0.0005, z * 0.004) * 0.4;
+    const t = phase - Math.floor(phase);
+    const u = t < dunes.skew ? t / dunes.skew : (1 - t) / (1 - dunes.skew);
+    // Round the brink and trough without steepening the planar faces or making seams at the wrap.
+    const e = CREST.transverse;
+    const profile = u < e ? u * u / (2 * e) : u > 1 - e ? 1 - e - (1 - u) ** 2 / (2 * e) : u - e / 2;
+    const saddle = 0.3 + 0.7 * smooth((ridge(x * 0.0008, z * 0.006) + 1) * 0.75);
+    return dunes.ridgeAmplitude * saddle * profile / (1 - e);
   };
   // Star dune shape, 0..1, at unit frequency. Intersect three ridge directions to make peaks with radial arms.
   const starShape = (x: number, z: number) => {
@@ -125,8 +129,9 @@ export function findFlatSpot(h: (x: number, z: number) => number, soft: (x: numb
 export const SOFT = {
   step: 2, // m between stencil samples; matches the chunk grid so colours reuse its heights
   base: 0.1, // flat open ground
-  lee: 2, // per unit of slope falling toward +x: slip faces collect sand blown over the crest
+  lee: 1.5, // per unit of slope falling toward +x: slip faces collect sand blown over the crest
   windward: 1.5, // per unit of slope rising toward +x: the wind packs the stoss side
+  steep: 0.8, slopeFloor: 0.25, // steep sand is loose even across the wind; gentle slopes keep their firm lines
   crest: 16, // per 1/m of convex curvature: loose grains pile up on sharp crests
   bowl: 25, // per 1/m of concave curvature: avalanching sand settles in hollows and at the toe of slip faces
   curveFloor: 0.01, // 1/m; broad shoulders and gentle swells don't count
@@ -137,9 +142,11 @@ const clamp01 = (v: number) => Math.max(0, Math.min(1, v));
 // Softness from heights at a point and `d` m along +x, -x, +z, -z.
 export function softness(c: number, xp: number, xm: number, zp: number, zm: number, d = SOFT.step) {
   const gx = (xp - xm) / (2 * d);
+  const slope = Math.hypot(gx, (zp - zm) / (2 * d));
   const curve = (xp + xm + zp + zm - 4 * c) / (d * d); // Laplacian: crest < 0 < bowl
   return clamp01(
     SOFT.base + SOFT.lee * Math.max(0, -gx) - SOFT.windward * Math.max(0, gx) +
+    SOFT.steep * Math.max(0, slope - SOFT.slopeFloor) +
     SOFT.crest * Math.max(0, -curve - SOFT.curveFloor) + SOFT.bowl * Math.max(0, curve - SOFT.curveFloor),
   );
 }
