@@ -42,7 +42,7 @@ export function createHud() {
       idle = hudIdle(idle, sinking !== wasSinking, dt);
       wasSinking = sinking;
       set(compassEl, compass(fx, fz));
-      set(warning, sinking ? 'Sinking — rock the truck or steer side to side' : '');
+      set(warning, sinking ? 'Sinking — ease off and gently reverse out' : '');
       panel.style.opacity = idle < HUD.hold ? '1' : '0';
       warning.style.opacity = sinking ? '1' : '0';
     },

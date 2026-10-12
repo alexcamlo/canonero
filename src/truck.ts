@@ -2,7 +2,7 @@ import RAPIER from '@dimforge/rapier3d-compat';
 import * as THREE from 'three';
 import type { Input } from './input';
 import { GEARBOX, shift } from './gearbox';
-import { drag, plough, SINKAGE, stepSinkage, traction } from './sinkage';
+import { drag, stepSinkage, traction, wheelSpin } from './sinkage';
 import { createTruckModel } from './truckModel';
 
 // Truck faces +x (Rapier's default vehicle forward axis), y is up, +z is the right side.
@@ -20,7 +20,7 @@ export const TRUCK = {
   suspensionCompression: 1.2, // damping while compressing
   suspensionRelaxation: 1.6, // damping while extending
   maxSuspensionForce: 40000, // N per wheel
-  frictionSlip: 2.2,
+  frictionSlip: 0.75, // Rapier allows twice this longitudinal force / wheel load
   sideFrictionStiffness: 0.9,
   engineForce: 2000, // N per wheel, all four driven, before the gearbox multiplier; fades out (quadratically) to zero at top speed
   reverseSpeed: 8, // m/s
@@ -31,12 +31,10 @@ export const TRUCK = {
   flipLift: 1.5, // m, how far flip/reset drop the truck from
   steerFalloff: 18, // m/s; steering lock halves at this speed
   sinkDepth: 0.2, // m, how far a fully sunk wheel sits into the sand (suspension rest shortens by the same)
-  spinSpeed: 2, // m/s; below this, throttle counts as wheelspin (fully at standstill)
   sandPressure: 0.4, // fixed normalized sand-tyre setup, not a real-world pressure prescription
   airedTopSpeed: 0.6, // top speed fraction at zero pressure
   airedSideGrip: 0.6, // cornering grip fraction at zero pressure
   airedSteerRate: 0.6, // steering speed fraction at zero pressure
-  rockSpeed: 0.1, // m/s the truck must move each way for a direction change to count as rocking; a bogged truck only shuffles
   headlightIntensity: 60, // per lamp at full dark; falls off with distance (decay 1, for a longer throw than physical)
   headlightAngle: 0.5, // rad, beam half-angle
 };
@@ -125,12 +123,15 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
   let rpm = 0;
   const sinkage = [0, 0, 0, 0];
   const pressure = T.sandPressure;
-  let dir = 0; // last direction of travel, for rocking
   // Scratch objects: update() runs every physics step, so don't allocate there.
   const fwd = new THREE.Vector3();
-  const upward = new THREE.Vector3();
+  const normal = new THREE.Vector3();
+  const rolling = new THREE.Vector3();
+  const lateral = new THREE.Vector3();
+  const axes = [rolling, lateral];
+  const contact = new THREE.Vector3();
   const rot = new THREE.Quaternion();
-  const slide = new THREE.Vector3();
+
   const forward = () => {
     const q = body.rotation();
     return fwd.set(1, 0, 0).applyQuaternion(rot.set(q.x, q.y, q.z, q.w));
@@ -163,41 +164,43 @@ export function createTruck(world: RAPIER.World, scene: THREE.Scene, start: THRE
     const steerDelta = THREE.MathUtils.clamp(target - steer, -steerRate * dt, steerRate * dt);
     steer += steerDelta;
 
-    // Rolling forward, nose down a steep face, brake hard on: the front tyres plough in. Pitch, not velocity, so landings don't count.
-    const dig = plough(speed > 0 ? brake / T.brakeForce : 0, -forward().y);
+    rot.copy(body.rotation());
     for (let i = 0; i < 4; i++) {
       vehicle.setWheelEngineForce(i, engine);
       vehicle.setWheelBrake(i, brake);
-      // While the nose ploughs, the light, locked rear wheels slide on the loose face; anchored at the front, the tail swings round (broach).
-      const skid = i < 2 ? 1 : 1 - SINKAGE.ploughSkid * dig;
-      vehicle.setWheelFrictionSlip(i, skid * T.frictionSlip * traction(sinkage[i], pressure));
+      contact.set(wheelMounts[i][0], T.wheelY, wheelMounts[i][1]).applyQuaternion(rot).add(prevPos);
+      vehicle.setWheelFrictionSlip(i, T.frictionSlip * traction(sinkage[i], pressure, softnessAt(contact.x, contact.z)));
       vehicle.setWheelSideFrictionStiffness(i, T.sideFrictionStiffness * THREE.MathUtils.lerp(T.airedSideGrip, 1, pressure));
       vehicle.setWheelSuspensionRestLength(i, T.suspensionRest - sinkage[i] * T.sinkDepth);
       if (i < 2) vehicle.setWheelSteering(i, steer);
     }
     vehicle.updateVehicle(dt);
 
-    // Raycast wheels never really spin, so wheelspin = throttle without the truck moving; feathering it spins less.
-    const wheelSpin = engine ? Math.max(input.throttle, input.brake) * Math.max(0, 1 - Math.abs(speed) / T.spinSpeed) : 0;
-    const moving = Math.abs(speed) > T.rockSpeed ? Math.sign(speed) : 0;
-    const dirChanged = moving !== 0 && dir !== 0 && moving !== dir && engine !== 0; // driven, so settling jitter doesn't count
-    if (moving) dir = moving;
-    const up = upward.set(0, 1, 0).applyQuaternion(rot); // rot was set by forward() above
     for (let i = 0; i < 4; i++) {
       const p = vehicle.wheelIsInContact(i) && vehicle.wheelContactPoint(i);
-      if (!p) continue; // airborne wheels keep their sinkage
-      // Drag acts like friction against the wheel's slide over the ground, so it can stop motion but never push back.
-      // A nose dug in deeper than the tail then swings the tail round, as a broach does.
+      const n = p && vehicle.wheelContactNormal(i);
+      const load = Math.min(T.maxSuspensionForce, vehicle.wheelSuspensionForce(i) ?? 0);
+      if (!p || !n || load <= 0) continue;
       const soft = softnessAt(p.x, p.z);
+      normal.copy(n).normalize();
+      const angle = vehicle.wheelSteering(i) ?? 0;
+      lateral.set(Math.sin(angle), 0, Math.cos(angle)).applyQuaternion(rot);
+      lateral.addScaledVector(normal, -lateral.dot(normal)).normalize();
+      rolling.crossVectors(normal, lateral).normalize();
       const vp = body.velocityAtPoint(p);
-      slide.set(vp.x, vp.y, vp.z).addScaledVector(up, -(vp.x * up.x + vp.y * up.y + vp.z * up.z)); // ignore suspension bounce
-      const vs = slide.length();
-      if (vs > 1e-3) body.applyImpulseAtPoint(slide.multiplyScalar(-Math.min((vs * T.mass) / 4, drag(sinkage[i], soft) * dt) / vs), p, true);
-      sinkage[i] = stepSinkage(
-        sinkage[i],
-        { softness: soft, groundSpeed: speed, wheelSpin, pressure, steerRate: steerDelta / dt, isFront: i < 2, dirChanged, plough: dig },
-        dt,
-      );
+      const along = rolling.dot(vp);
+      const across = lateral.dot(vp);
+      sinkage[i] = stepSinkage(sinkage[i], {
+        softness: soft, groundSpeed: Math.hypot(along, across), pressure, load,
+        wheelSpin: wheelSpin(engine, vehicle.wheelForwardImpulse(i) ?? 0, dt),
+      }, dt);
+      // Separate rolling and sideways ploughing, both tangent to the actual ground.
+      for (const axis of axes) {
+        const velocity = axis.dot(body.velocityAtPoint(p));
+        const resistance = drag(sinkage[i], soft, load, axis === lateral);
+        const impulse = -Math.sign(velocity) * Math.min(Math.abs(velocity) * T.mass / 4, resistance * dt);
+        body.applyImpulseAtPoint(contact.copy(axis).multiplyScalar(impulse), p, true);
+      }
     }
   }
 

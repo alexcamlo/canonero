@@ -194,3 +194,72 @@ test('glazing covers upper and lower window edges on both sides, front and rear'
     }
   }
 });
+
+test('soft sand settles at rest, permits a gentle launch and leaves airborne wheels unloaded', async () => {
+  await RAPIER.init();
+  const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  try {
+    world.createCollider(RAPIER.ColliderDesc.cuboid(100, 0.1, 100).setTranslation(0, -0.1, 0));
+    const truck = createTruck(world, new THREE.Scene(), new THREE.Vector3(0, 1.5, 0), () => 1, await readModel());
+    const input = { throttle: 0, brake: 0, steer: 0, viewToggle: false };
+    const step = (seconds: number) => {
+      for (let i = 0; i < seconds * 60; i++) {
+        truck.update(input, 1 / 60);
+        world.step();
+      }
+    };
+    step(10);
+    const settled = truck.state().sinkage;
+    step(20);
+    truck.state().sinkage.forEach((depth, i) => {
+      expect(depth).toBeLessThan(0.3);
+      expect(depth).toBeCloseTo(settled[i], 2);
+    });
+    const start = truck.body.translation().x;
+    input.throttle = 0.5;
+    step(3);
+    expect(truck.body.translation().x - start).toBeGreaterThan(2);
+    expect(Math.max(...truck.state().sinkage)).toBeLessThan(0.3);
+    truck.body.setTranslation({ x: 0, y: 50, z: 0 }, true);
+    truck.body.setLinvel({ x: 0, y: 0, z: 0 }, true);
+    const airborne = truck.state().sinkage;
+    input.throttle = 1;
+    step(0.5);
+    expect(truck.state().sinkage).toEqual(airborne);
+    truck.reset(0, 0, 0);
+    expect(truck.state().sinkage).toEqual([0, 0, 0, 0]);
+  } finally {
+    world.free();
+  }
+});
+
+test('excess throttle digs into soft sand and steering scrubs momentum', async () => {
+  await RAPIER.init();
+  const model = await readModel();
+  const trial = (throttle: number, steer: number) => {
+    const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+    try {
+      world.createCollider(RAPIER.ColliderDesc.cuboid(100, 0.1, 100).setTranslation(0, -0.1, 0));
+      const truck = createTruck(world, new THREE.Scene(), new THREE.Vector3(0, 1.5, 0), () => 1, model.clone(true));
+      const input = { throttle: 0, brake: 0, steer: 0, viewToggle: false };
+      for (let i = 0; i < 600; i++) {
+        truck.update(input, 1 / 60);
+        world.step();
+      }
+      input.throttle = throttle;
+      input.steer = steer;
+      let peakSinkage = 0;
+      for (let i = 0; i < 180; i++) {
+        truck.update(input, 1 / 60);
+        world.step();
+        peakSinkage = Math.max(peakSinkage, ...truck.state().sinkage);
+      }
+      return { speed: truck.vehicle.currentVehicleSpeed(), peakSinkage };
+    } finally {
+      world.free();
+    }
+  };
+  const gentle = trial(0.5, 0);
+  expect(trial(1, 0).peakSinkage).toBeGreaterThan(gentle.peakSinkage + 0.01);
+  expect(trial(0.5, 1).speed).toBeLessThan(gentle.speed * 0.9);
+});
