@@ -3,6 +3,17 @@ import type { TRUCK } from './truck';
 
 // Adapt the ground-centered GLB to the chassis and retain each wheel's outward-facing rotation.
 export function createTruckModel(body: THREE.Group, dimensions: typeof TRUCK) {
+  // Matte, non-metal surfaces take the same diffuse sun and sand bounce as the dunes.
+  body.traverse((node) => {
+    if (!(node instanceof THREE.Mesh) || !(node.material instanceof THREE.MeshStandardMaterial)) return;
+    const material = node.material;
+    material.metalness = 0;
+    material.roughness = 1;
+    if (material instanceof THREE.MeshPhysicalMaterial) material.clearcoat = 0;
+    if (material.name === 'rubber') material.color.set(0x49433b);
+    if (material.name === 'glass') material.color.set(0x454a46);
+  });
+
   const names = ['wheel_front_left', 'wheel_front_right', 'wheel_rear_left', 'wheel_rear_right'];
   const wheelMeshes = names.map((name) => {
     const wheel = body.getObjectByName(name);

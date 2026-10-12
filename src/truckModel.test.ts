@@ -14,6 +14,23 @@ async function readModel() {
   return scene;
 }
 
+test('truck materials use matte diffuse lighting without changing paint or lamp identity', async () => {
+  const model = await readModel();
+  const materials = new Set<THREE.MeshStandardMaterial>();
+  model.traverse((node) => { if (node instanceof THREE.Mesh) materials.add(node.material); });
+  const paint = [...materials].find((material) => material.name === 'champagne-paint')!;
+  const color = paint.color.clone();
+  createTruckModel(model, TRUCK);
+  for (const material of materials) {
+    expect(material.metalness, material.name).toBe(0);
+    expect(material.roughness, material.name).toBe(1);
+    expect(material.fog, material.name).toBe(true);
+    if (material instanceof THREE.MeshPhysicalMaterial) expect(material.clearcoat).toBe(0);
+  }
+  expect(paint.color.equals(color)).toBe(true);
+  expect([...materials].some((material) => material.name === 'headlamp')).toBe(true);
+});
+
 test('GLB wheels match physics mounts, radius and outward orientation', async () => {
   const { body, wheels } = createTruckModel(await readModel(), TRUCK);
   expect(wheels).toHaveLength(4);

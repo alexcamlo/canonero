@@ -10,11 +10,11 @@ export const DAY = {
 
 // Looks keyed by sun elevation (sin), so dawn mirrors dusk; light is the moon below y = 0.
 const KEYS = [
-  { y: -0.5, light: 0x8ea6d8, lightIntensity: 0.7, hemiSky: 0x3c5078, hemiGround: 0x2a2630, hemiIntensity: 0.9, horizon: 0x101a2e, zenith: 0x03060f, stars: 1, lamps: 1 },
-  { y: -0.12, light: 0x9aa8d0, lightIntensity: 0.25, hemiSky: 0x6c6c98, hemiGround: 0x4a3438, hemiIntensity: 0.7, horizon: 0x4a3c58, zenith: 0x16223e, stars: 0.4, lamps: 1 },
-  { y: 0, light: 0xff9050, lightIntensity: 0, hemiSky: 0xffb890, hemiGround: 0x985a44, hemiIntensity: 0.65, horizon: 0xf0905c, zenith: 0x5a78a8, stars: 0, lamps: 0.6 },
-  { y: 0.276, light: 0xffd0a0, lightIntensity: 3.2, hemiSky: 0xffd8b8, hemiGround: 0xc07848, hemiIntensity: 0.8, horizon: 0xf8c487, zenith: 0x8fb4de, stars: 0, lamps: 0 }, // #17's golden hour
-  { y: 0.75, light: 0xfff2e0, lightIntensity: 3, hemiSky: 0xe0ecff, hemiGround: 0xc89468, hemiIntensity: 0.9, horizon: 0xdfe4e2, zenith: 0x4f88c8, stars: 0, lamps: 0 },
+  { y: -0.5, light: 0x8ea6d8, lightIntensity: 0.7, hemiSky: 0x3c5078, hemiGround: 0x2a2630, hemiIntensity: 2.7, horizon: 0x101a2e, zenith: 0x03060f, stars: 1, lamps: 1 },
+  { y: -0.12, light: 0x9aa8d0, lightIntensity: 0.25, hemiSky: 0x6c6c98, hemiGround: 0x4a3438, hemiIntensity: 2.1, horizon: 0x4a3c58, zenith: 0x16223e, stars: 0.4, lamps: 1 },
+  { y: 0, light: 0xff9050, lightIntensity: 0, hemiSky: 0xffb890, hemiGround: 0x985a44, hemiIntensity: 1.95, horizon: 0xf0905c, zenith: 0x5a78a8, stars: 0, lamps: 0.6 },
+  { y: 0.276, light: 0xffd0a0, lightIntensity: 3.2, hemiSky: 0xffd8b8, hemiGround: 0xc07848, hemiIntensity: 2.4, horizon: 0xf8c487, zenith: 0x8fb4de, stars: 0, lamps: 0 }, // #17's golden hour
+  { y: 0.75, light: 0xfff2e0, lightIntensity: 3, hemiSky: 0xe0ecff, hemiGround: 0xc89468, hemiIntensity: 2.7, horizon: 0xdfe4e2, zenith: 0x4f88c8, stars: 0, lamps: 0 },
 ];
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -121,18 +121,14 @@ export function createScene() {
     uniforms.zenith.value.copy(s.zenith);
     uniforms.sunDir.value.copy(s.sunDir);
     uniforms.stars.value = s.stars;
-    scene.environmentIntensity = THREE.MathUtils.lerp(0.12, 0.8, 1 - s.lamps);
     sky.position.copy(camera.position);
     sun.target.position.copy(focus);
     sun.position.copy(focus).addScaledVector(s.lightDir, 100);
     return s.lamps;
   }
 
-  // Capture the starting sky once (dt 0: light it without advancing the clock); its reflection gives paint and glass a readable horizon.
+  // Ambient sky and sand bounce follow the clock, rather than a frozen startup reflection.
   update(0, new THREE.Vector3());
-  const pmrem = new THREE.PMREMGenerator(renderer);
-  scene.environment = pmrem.fromScene(scene, 0.04, 0.1, 1000, { size: 128 }).texture;
-  pmrem.dispose();
 
   return { renderer, scene, camera, update };
 }
