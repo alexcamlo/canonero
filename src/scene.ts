@@ -104,7 +104,7 @@ export function createScene() {
   });
 
   const param = Number(new URL(location.href).searchParams.get('time') ?? NaN); // ?time=0.x starts elsewhere in the cycle
-  let t = Number.isFinite(param) ? ((param % 1) + 1) % 1 : DAY.start;
+  let t = Number.isFinite(param) ? ((param % 1) + 1) % 1 : Math.random(); // random time of day each load
 
   // Advance the clock, light the scene for it, and keep sky and the shadow frustum centred on whatever we're looking at.
   // Returns the headlight level.
